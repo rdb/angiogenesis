@@ -3,9 +3,9 @@ from panda3d.core import NodePath
 from direct.showbase.DirectObject import DirectObject
 
 
-TRAIL_LENGTH = 10
-ROT_ACC = -300
-ROT_BRAKE = 0.0001
+CAM_TRAIL = 1.5 # units
+ROT_ACC = -500
+ROT_BRAKE = 0.001
 
 
 def smoothstep(x):
@@ -32,7 +32,7 @@ class ShipControls(DirectObject):
         self.cam_root = NodePath("dummy")
         self.cam_root.reparent_to(render)
         base.camera.reparent_to(self.cam_root)
-        base.camera.set_pos(-0.1, -1.5, 0.3 - tube.radius)
+        base.camera.set_pos(-0.1, 0 - CAM_TRAIL, 0.3 - tube.radius)
         self.ship.ship.set_pos(0, 0, 0.1 - tube.radius)
 
         self.r_speed = 0
@@ -41,8 +41,7 @@ class ShipControls(DirectObject):
         self.z_target = 0.3 - tube.radius
         self.z_t = 1.0
 
-        self.trail = [0]
-        self.last_sample = 0
+        self.trail = [(0, 0)]
 
     def set_cam_z_target(self, z):
         if z != self.z_target:
@@ -70,17 +69,24 @@ class ShipControls(DirectObject):
         else:
             self.r_speed *= ROT_BRAKE ** base.clock.dt
 
-        r = self.ship.root.get_r() + self.r_speed * base.clock.dt
+        r = self.ship.root.get_r() + self.r_speed * base.clock.dt / self.tube.radius
         self.ship.root.set_r(r)
 
-        while self.last_sample < task.time:
-            self.trail.append(r)
-            self.last_sample += 0.01
+        self.trail.append((self.tube.y, r))
 
-        if len(self.trail) > TRAIL_LENGTH:
-            self.trail = self.trail[-TRAIL_LENGTH:]
-            cam_r = self.trail[0]
-            self.cam_root.set_r(cam_r)
+        # Calculate ship r 3 seconds ago
+        while len(self.trail) > 2 and self.trail[1][0] < self.tube.y - CAM_TRAIL:
+            self.trail.pop(0)
+
+        y0, r0 = self.trail[0]
+        y1, r1 = self.trail[1]
+        if y0 == y1:
+            r = r0
+        else:
+            yt = (self.tube.y - CAM_TRAIL - y0) / (y1 - y0)
+            r = r0 * (1 - yt) + r1 * yt
+
+        self.cam_root.set_r(r)
 
         #base.camera.look_at(self.ship.ship)
 
