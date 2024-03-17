@@ -1,0 +1,153 @@
+#version 120
+
+const vec4 fog_color = vec4(0, 0, 0, 1);
+
+uniform struct p3d_MaterialParameters {
+    vec4 baseColor;
+    vec4 emission;
+    float roughness;
+    float metallic;
+} p3d_Material;
+
+uniform vec4 p3d_ColorScale;
+uniform vec4 p3d_TexAlphaOnly;
+
+//uniform vec3 sh_coeffs[9];
+uniform mat4 p3d_ModelMatrix;
+
+struct FunctionParamters {
+    float n_dot_l;
+    float n_dot_v;
+    float n_dot_h;
+    float l_dot_h;
+    float v_dot_h;
+    float roughness;
+    float metallic;
+    vec3 reflection0;
+    vec3 diffuse_color;
+    vec3 specular_color;
+};
+
+uniform sampler2D p3d_TextureFF;
+uniform sampler2D p3d_TextureSelector;
+uniform sampler2D p3d_TextureNormal;
+uniform sampler2D p3d_TextureEmission;
+
+//uniform sampler2D brdf_lut;
+uniform samplerCube filtered_env_map;
+uniform float max_reflection_lod;
+
+#ifdef ENABLE_SHADOWS
+uniform float global_shadow_bias;
+#endif
+
+const vec3 F0 = vec3(0.04);
+const float PI = 3.141592653589793;
+const float SPOTSMOOTH = 0.001;
+const float LIGHT_CUTOFF = 0.001;
+
+varying vec3 v_view_position;
+varying vec4 v_color;
+varying vec2 v_texcoord;
+varying mat3 v_view_tbn;
+#ifdef ENABLE_SHADOWS
+varying vec4 v_shadow_pos[MAX_LIGHTS];
+#endif
+
+#ifdef USE_330
+out vec4 o_color;
+#endif
+
+
+// Schlick's Fresnel approximation with Spherical Gaussian approximation to replace the power
+vec3 specular_reflection(FunctionParamters func_params) {
+    vec3 f0 = func_params.reflection0;
+    float v_dot_h= func_params.v_dot_h;
+    return f0 + (vec3(1.0) - f0) * pow(2.0, (-5.55473 * v_dot_h - 6.98316) * v_dot_h);
+}
+
+vec3 fresnelSchlickRoughness(float u, vec3 f0, float roughness) {
+    return f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - u, 0.0, 1.0), 5.0);
+}
+
+// Smith GGX with optional fast sqrt approximation (see https://google.github.io/filament/Filament.md.html#materialsystem/specularbrdf/geometricshadowing(specularg))
+float visibility_occlusion(FunctionParamters func_params) {
+    float r = func_params.roughness;
+    float n_dot_l = func_params.n_dot_l;
+    float n_dot_v = func_params.n_dot_v;
+#ifdef SMITH_SQRT_APPROX
+    float ggxv = n_dot_l * (n_dot_v * (1.0 - r) + r);
+    float ggxl = n_dot_v * (n_dot_l * (1.0 - r) + r);
+#else
+    float r2 = r * r;
+    float ggxv = n_dot_l * sqrt(n_dot_v * n_dot_v * (1.0 - r2) + r2);
+    float ggxl = n_dot_v * sqrt(n_dot_l * n_dot_l * (1.0 - r2) + r2);
+#endif
+
+    float ggx = ggxv + ggxl;
+    if (ggx > 0.0) {
+        return 0.5 / ggx;
+    }
+    return 0.0;
+}
+
+// GGX/Trowbridge-Reitz
+float microfacet_distribution(FunctionParamters func_params) {
+    float roughness2 = func_params.roughness * func_params.roughness;
+    float f = (func_params.n_dot_h * func_params.n_dot_h) * (roughness2 - 1.0) + 1.0;
+    return roughness2 / (PI * f * f);
+}
+
+// Lambert
+float diffuse_function() {
+    return 1.0 / PI;
+}
+
+vec3 get_normalmap_data() {
+#ifdef CALC_NORMAL_Z
+    vec2 normalXY = 2.0 * texture2D(p3d_TextureNormal, v_texcoord).rg - 1.0;
+    float normalZ = sqrt(clamp(1.0 - dot(normalXY, normalXY), 0.0, 1.0));
+    return vec3(
+        normalXY,
+        normalZ
+    );
+#else
+    return 2.0 * texture2D(p3d_TextureNormal, v_texcoord).rgb - 1.0;
+#endif
+}
+
+void main() {
+    vec4 metal_rough = texture2D(p3d_TextureSelector, v_texcoord);
+    float metallic = clamp(p3d_Material.metallic * metal_rough.b, 0.0, 1.0);
+    float perceptual_roughness = clamp(p3d_Material.roughness * metal_rough.g,  0.0, 1.0);
+    float alpha_roughness = perceptual_roughness * perceptual_roughness;
+    vec4 base_color = p3d_Material.baseColor * v_color * p3d_ColorScale * (texture2D(p3d_TextureFF, v_texcoord) + p3d_TexAlphaOnly);
+    vec3 diffuse_color = (base_color.rgb * (vec3(1.0) - F0)) * (1.0 - metallic);
+    vec3 spec_color = mix(F0, base_color.rgb, metallic);
+    vec3 normalmap = get_normalmap_data();
+    vec3 n = normalize(v_view_tbn * normalmap);
+    vec3 v = normalize(-v_view_position);
+
+    float ambient_occlusion = 1.0;
+
+    vec3 emission = vec3(0.0);
+
+    vec4 color = vec4(vec3(0.0), base_color.a);
+
+    // Indirect diffuse (ambient light)
+    color.rgb += (diffuse_color + spec_color) * ambient_occlusion;
+
+    // Emission
+    color.rgb += emission;
+
+    // Exponential fog
+    float fog_distance = length(v_view_position);
+    float fog_factor = clamp(1.0 / exp(fog_distance * 0.005), 0.0, 1.0);
+    color = mix(fog_color, color, fog_factor);
+
+#ifdef USE_330
+    o_color = color;
+#else
+    gl_FragColor = color;
+#endif
+}
