@@ -9,6 +9,7 @@ X_SPACING = 2
 Y_SPACING = 10
 SPEED = 10
 AR_FACTOR = pi
+MIN_RADIUS = 2
 
 SEQ_LENGTH = 10
 
@@ -91,7 +92,10 @@ class Tube:
         return task.cont
 
     def gen_sequence(self):
-        opts = ['regular', 'trench', 'ramp']
+        opts = ['regular', 'trench']
+
+        if self.next_radius > MIN_RADIUS:
+            opts.append('ramp')
 
         # Don't put stepdown right after ramp
         if self.rings and self.rings[-1].start_radius == self.rings[-1].end_radius:
