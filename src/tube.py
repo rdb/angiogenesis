@@ -30,8 +30,8 @@ class Tube:
         self.trenches = model.find_all_matches('trench_*')
         self.tiles = model.find_all_matches('tile_*')
 
-        for i in range(NUM_RINGS):
-            np = self.gen_ring()
+        while len(self.rings) < NUM_RINGS:
+            self.gen_sequence()
 
         taskMgr.add(self.task)
 
@@ -53,13 +53,18 @@ class Tube:
         while self.rings and self.rings[0].get_y() < -Y_SPACING:
             ring = self.rings.pop(0)
             ring.remove_node()
-            ring = self.gen_ring()
+
+        while len(self.rings) < NUM_RINGS:
+            self.gen_sequence()
 
         return task.cont
 
-    def gen_ring(self):
+    def gen_sequence(self):
         is_trench = self.random.choice((True, False))
+        for i in range(10):
+            self.gen_ring(is_trench)
 
+    def gen_ring(self, is_trench):
         count = int(self.radius * AR_FACTOR + 0.5)
 
         np = NodePath("ring")
