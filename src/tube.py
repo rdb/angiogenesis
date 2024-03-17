@@ -1,13 +1,14 @@
 from panda3d.core import NodePath, Shader, OmniBoundingVolume
 
 from random import Random
+from math import pi
 
 
 NUM_RINGS = 60
 X_SPACING = 2
 Y_SPACING = 10
 SPEED = 10
-AR_FACTOR = 2
+AR_FACTOR = pi
 
 SEQ_LENGTH = 10
 
