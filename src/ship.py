@@ -57,12 +57,17 @@ class ShipControls(DirectObject):
         is_down = base.mouseWatcherNode.is_button_down
 
         current_ring = self.tube.current_ring
-        self.set_ship_z_target(0.1 - min(current_ring.start_radius, current_ring.end_radius))
+        self.set_ship_z_target(0.1 - current_ring.start_radius)
 
         if self.z_t < 1.0:
             self.z_t = min(1.0, self.z_t + base.clock.dt)
             t = smoothstep(self.z_t)
-            self.ship.ship.set_z(self.z_origin * (1 - t) + self.z_target * t)
+            z = self.z_origin * (1 - t) + self.z_target * t
+        else:
+            z = self.z_target
+
+        z = max(z, 0.1 - current_ring.radius_at(0.0))
+        self.ship.ship.set_z(z)
 
         hor = is_down('arrow_right') - is_down('arrow_left')
 
@@ -77,10 +82,10 @@ class ShipControls(DirectObject):
         else:
             self.r_speed *= ROT_BRAKE ** base.clock.dt
 
-        r = self.ship.root.get_r() + self.r_speed * base.clock.dt / -self.ship.ship.get_z()
+        r = self.ship.root.get_r() + self.r_speed * base.clock.dt / -z
         self.ship.root.set_r(r)
 
-        self.trail.append((self.tube.y, r, self.ship.ship.get_z()))
+        self.trail.append((self.tube.y, r, z))
 
         # Calculate ship r 3 seconds ago
         while len(self.trail) > 2 and self.trail[1][0] < self.tube.y - CAM_TRAIL:

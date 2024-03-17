@@ -20,6 +20,11 @@ class Ring:
     def __init__(self):
         self.is_trench = False
 
+    def radius_at(self, y):
+        t = (y - self.node_path.get_y()) / Y_SPACING + 0.5
+        t = max(0, min(1, t))
+        return self.end_radius * t + self.start_radius * (1 - t)
+
     def needs_cull(self):
         return self.node_path.get_y() < -Y_SPACING
 
@@ -40,6 +45,11 @@ class Tube:
         model = loader.load_model('assets/bam/segments.bam')
         self.trenches = model.find_all_matches('trench_*')
         self.tiles = model.find_all_matches('tile_*')
+        self.empty_tiles = [self.tiles[0]]
+
+        # Always start with empty
+        self.gen_ring(self.empty_tiles)
+        self.gen_ring(self.empty_tiles)
 
         while len(self.rings) < NUM_RINGS:
             self.gen_sequence()
@@ -81,26 +91,33 @@ class Tube:
         return task.cont
 
     def gen_sequence(self):
-        stype = self.random.choice(('trench', 'regular', 'stepdown'))
+        opts = ['regular', 'trench', 'ramp']
+
+        # Don't put stepdown right after ramp
+        if self.rings and self.rings[-1].start_radius == self.rings[-1].end_radius:
+            opts.append('stepdown')
+
+        stype = self.random.choice(opts)
 
         if stype == 'regular':
             for i in range(SEQ_LENGTH):
-                self.gen_ring(False)
+                self.gen_ring(self.tiles)
 
         elif stype == 'trench':
             for i in range(SEQ_LENGTH):
-                self.gen_ring(True)
+                self.gen_ring(self.trenches)
 
-        elif stype == 'funnel':
-            to_radius = self.next_radius - 1
-            self.gen_funnel(to_radius)
+        elif stype == 'ramp':
+            for i in range(1):
+                self.gen_ring(self.empty_tiles, radius_delta=-1)
 
         elif stype == 'stepdown':
-            self.next_radius += 2
-            self.gen_ring(False)
+            self.next_radius += 1
+            self.gen_ring(self.empty_tiles)
 
-    def gen_funnel(self, to_radius):
+    def gen_ring(self, set, radius_delta=0):
         from_radius = self.next_radius
+        to_radius = from_radius + radius_delta
         count = int(to_radius * AR_FACTOR + 0.5)
 
         ring = Ring()
@@ -114,8 +131,9 @@ class Tube:
         np.node().set_final(True)
         ring.node_path = np
 
+        # for count = 4
         for c in range(count):
-            seg = self.trenches[0]
+            seg = self.random.choice(set)
             seg = seg.copy_to(np)
             seg.set_pos(c * X_SPACING, 0, 0)
 
@@ -125,38 +143,4 @@ class Tube:
         self.rings.append(ring)
         self.counter += 1
         self.next_radius = to_radius
-        return np
-
-    def gen_ring(self, is_trench):
-        radius = self.next_radius
-        count = int(radius * AR_FACTOR + 0.5)
-
-        if is_trench:
-            radius += 1
-
-        ring = Ring()
-        ring.num_segments = count
-        ring.start_radius = radius
-        ring.end_radius = radius
-
-        np = NodePath("ring")
-        np.set_shader_input("num_segments", count)
-        np.set_shader_input("radius", (radius, radius))
-        np.node().set_final(True)
-        ring.node_path = np
-
-        # for count = 4
-        for c in range(count):
-            if is_trench:
-                seg = self.random.choice(self.trenches)
-            else:
-                seg = self.random.choice(self.tiles)
-            seg = seg.copy_to(np)
-            seg.set_pos(c * X_SPACING, 0, 0)
-
-        np.flatten_strong()
-        np.set_y(self.counter * Y_SPACING - self.y)
-        np.reparent_to(self.root)
-        self.rings.append(ring)
-        self.counter += 1
         return np
