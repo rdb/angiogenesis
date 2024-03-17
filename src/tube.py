@@ -24,7 +24,7 @@ class Tube:
         self.counter = 0
         self.rings = []
 
-        self.radius = 4
+        self.radius = 100
 
         model = loader.load_model('assets/bam/segments.bam')
         self.trenches = model.find_all_matches('trench_*')

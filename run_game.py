@@ -25,6 +25,8 @@ base.disable_mouse()
 #base.camera.reparent_to(ship.ship)
 #base.camera.set_pos(0, -10, 0)
 
+base.accept('f12', base.screenshot)
+
 
 #base.taskMgr.add(move)
 
