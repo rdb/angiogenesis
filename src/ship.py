@@ -6,7 +6,9 @@ from direct.showbase.DirectObject import DirectObject
 CAM_TRAIL = 1.5 # units
 ROT_ACC = -500
 ROT_SPEED_LIMIT = 500
-ROT_BRAKE = 0.001
+ROT_BRAKE = 0.01
+
+SHIP_ROLL_FACTOR = 45 / ROT_SPEED_LIMIT
 
 
 def smoothstep(x):
@@ -94,6 +96,8 @@ class ShipControls(DirectObject):
             r = r0 * (1 - yt) + r1 * yt
 
         self.cam_root.set_r(r)
+
+        self.ship.ship.set_r(self.r_speed * SHIP_ROLL_FACTOR)
 
         #base.camera.look_at(self.ship.ship)
 
