@@ -81,13 +81,54 @@ class Tube:
         return task.cont
 
     def gen_sequence(self):
-        is_trench = self.random.choice((True, False))
-        for i in range(SEQ_LENGTH):
-            self.gen_ring(self.next_radius, is_trench)
+        stype = self.random.choice(('trench', 'regular', 'stepdown'))
 
-        self.next_radius += 2
+        if stype == 'regular':
+            for i in range(SEQ_LENGTH):
+                self.gen_ring(False)
 
-    def gen_ring(self, radius, is_trench):
+        elif stype == 'trench':
+            for i in range(SEQ_LENGTH):
+                self.gen_ring(True)
+
+        elif stype == 'funnel':
+            to_radius = self.next_radius - 1
+            self.gen_funnel(to_radius)
+
+        elif stype == 'stepdown':
+            self.next_radius += 2
+            self.gen_ring(False)
+
+    def gen_funnel(self, to_radius):
+        from_radius = self.next_radius
+        count = int(to_radius * AR_FACTOR + 0.5)
+
+        ring = Ring()
+        ring.num_segments = count
+        ring.start_radius = from_radius
+        ring.end_radius = to_radius
+
+        np = NodePath("ring")
+        np.set_shader_input("num_segments", count)
+        np.set_shader_input("radius", (from_radius, to_radius))
+        np.node().set_final(True)
+        ring.node_path = np
+
+        for c in range(count):
+            seg = self.trenches[0]
+            seg = seg.copy_to(np)
+            seg.set_pos(c * X_SPACING, 0, 0)
+
+        np.flatten_strong()
+        np.set_y(self.counter * Y_SPACING - self.y)
+        np.reparent_to(self.root)
+        self.rings.append(ring)
+        self.counter += 1
+        self.next_radius = to_radius
+        return np
+
+    def gen_ring(self, is_trench):
+        radius = self.next_radius
         count = int(radius * AR_FACTOR + 0.5)
 
         if is_trench:
@@ -100,7 +141,7 @@ class Tube:
 
         np = NodePath("ring")
         np.set_shader_input("num_segments", count)
-        np.set_shader_input("radius", radius)
+        np.set_shader_input("radius", (radius, radius))
         np.node().set_final(True)
         ring.node_path = np
 

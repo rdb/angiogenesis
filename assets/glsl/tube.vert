@@ -21,7 +21,7 @@ varying vec2 v_texcoord;
 varying mat3 v_view_tbn;
 
 uniform int num_segments;
-uniform int radius;
+uniform vec2 radius;
 uniform float y;
 //uniform vec2 bending;
 const float TAU = 6.283185307179586;
@@ -35,7 +35,8 @@ void main() {
 
     //phi += (y + p3d_Vertex.y + p3d_ModelMatrix[3].y) * 0.02;
 
-    float rad = (radius - p3d_Vertex.z);
+    float rt = (p3d_Vertex.y / 10 + 0.5);
+    float rad = (radius[1] * rt + radius[0] * (1-rt)) - p3d_Vertex.z;
     model_position.x = cos(phi) * rad;
     model_position.y = p3d_Vertex.y;
     model_position.z = sin(phi) * rad;
