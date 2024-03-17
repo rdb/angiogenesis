@@ -1,0 +1,17 @@
+__pycache__/
+*.py[co]
+
+*.blend1
+*.blend2
+
+/build/
+/.eggs/
+/dist/
+/screenshot-*.jpg
+
+/*.core
+/core
+
+/.pman.user
+
+/save.json
