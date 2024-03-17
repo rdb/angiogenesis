@@ -9,7 +9,8 @@ ROT_ACC = -500
 ROT_SPEED_LIMIT = 500
 ROT_BRAKE = 0.01
 
-SHIP_ROLL_FACTOR = 45 / ROT_SPEED_LIMIT
+SHIP_ROLL_ANGLE = 45
+SHIP_ROLL_SPEED = 0.0000001
 
 
 def smoothstep(x):
@@ -104,7 +105,11 @@ class ShipControls(DirectObject):
         self.cam_root.set_r(r)
         base.camera.set_z(z + CAM_Z_OFFSET)
 
-        self.ship.ship.set_r(self.r_speed * SHIP_ROLL_FACTOR)
+        target_h = self.r_speed * 60 / ROT_SPEED_LIMIT
+
+        target_r = hor * SHIP_ROLL_ANGLE
+        t = SHIP_ROLL_SPEED ** base.clock.dt
+        self.ship.ship.set_hpr(target_h, 0, target_r * (1 - t) + self.ship.ship.get_r() * t)
 
         #base.camera.look_at(self.ship.ship)
 
