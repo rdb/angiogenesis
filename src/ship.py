@@ -5,6 +5,7 @@ from direct.showbase.DirectObject import DirectObject
 
 CAM_TRAIL = 1.5 # units
 ROT_ACC = -500
+ROT_SPEED_LIMIT = 500
 ROT_BRAKE = 0.001
 
 
@@ -66,6 +67,12 @@ class ShipControls(DirectObject):
 
         if hor != 0:
             self.r_speed += hor * base.clock.dt * ROT_ACC
+
+            if abs(self.r_speed) > ROT_SPEED_LIMIT:
+                if self.r_speed > 0:
+                    self.r_speed = ROT_SPEED_LIMIT
+                else:
+                    self.r_speed = -ROT_SPEED_LIMIT
         else:
             self.r_speed *= ROT_BRAKE ** base.clock.dt
 
