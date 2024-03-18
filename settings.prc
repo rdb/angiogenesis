@@ -1,2 +1,2 @@
-framebuffer-srgb true
+#framebuffer-srgb true
 show-frame-rate-meter true

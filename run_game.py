@@ -1,5 +1,6 @@
 from direct.showbase.ShowBase import ShowBase
-from panda3d.core import load_prc_file, Filename
+from panda3d.core import load_prc_file, Filename, AmbientLight
+import simplepbr
 
 from src.tube import Tube
 from src.ship import Ship, ShipControls
@@ -10,6 +11,17 @@ load_prc_file(Filename.expand_from("$MAIN_DIR/settings.prc"))
 base = ShowBase()
 base.set_background_color((0, 0, 0, 1))
 
+simplepbr.init(
+    max_lights=0,
+    use_normal_maps=True,
+    enable_shadows=False,
+    enable_hardware_skinning=False,
+    env_map='assets/env/aircraft_workshop_01.env',
+)
+
+alight = AmbientLight('alight')
+alight.set_color((0, 0, 0, 1))
+render.set_light(render.attach_new_node(alight))
 
 tube = Tube()
 tube.root.reparent_to(render)

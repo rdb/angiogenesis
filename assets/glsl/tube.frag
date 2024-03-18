@@ -1,6 +1,18 @@
+// Based on code from https://github.com/KhronosGroup/glTF-Sample-Viewer
+
 #version 120
 
-const vec4 fog_color = vec4(0, 0, 0, 1);
+#ifndef MAX_LIGHTS
+    #define MAX_LIGHTS 0
+#endif
+
+#ifdef USE_330
+    #define texture2D texture
+    #define textureCube texture
+    #define textureCubeLod textureLod
+#else
+    #extension GL_ARB_shader_texture_lod : require
+#endif
 
 uniform struct p3d_MaterialParameters {
     vec4 baseColor;
@@ -12,8 +24,8 @@ uniform struct p3d_MaterialParameters {
 uniform vec4 p3d_ColorScale;
 uniform vec4 p3d_TexAlphaOnly;
 
-//uniform vec3 sh_coeffs[9];
-uniform mat4 p3d_ModelMatrix;
+uniform vec3 sh_coeffs[9];
+uniform vec3 camera_world_position;
 
 struct FunctionParamters {
     float n_dot_l;
@@ -33,13 +45,11 @@ uniform sampler2D p3d_TextureSelector;
 uniform sampler2D p3d_TextureNormal;
 uniform sampler2D p3d_TextureEmission;
 
-//uniform sampler2D brdf_lut;
+uniform sampler2D brdf_lut;
 uniform samplerCube filtered_env_map;
 uniform float max_reflection_lod;
 
-#ifdef ENABLE_SHADOWS
-uniform float global_shadow_bias;
-#endif
+const vec4 fog_color = vec4(0, 0, 0, 1);
 
 const vec3 F0 = vec3(0.04);
 const float PI = 3.141592653589793;
@@ -47,12 +57,12 @@ const float SPOTSMOOTH = 0.001;
 const float LIGHT_CUTOFF = 0.001;
 
 varying vec3 v_view_position;
+varying vec3 v_world_position;
 varying vec4 v_color;
+varying float v_occlude;
 varying vec2 v_texcoord;
 varying mat3 v_view_tbn;
-#ifdef ENABLE_SHADOWS
-varying vec4 v_shadow_pos[MAX_LIGHTS];
-#endif
+varying mat3 v_world_tbn;
 
 #ifdef USE_330
 out vec4 o_color;
@@ -116,6 +126,19 @@ vec3 get_normalmap_data() {
 #endif
 }
 
+vec3 irradiance_from_sh(vec3 normal) {
+    return
+        + sh_coeffs[0] * 0.282095
+        + sh_coeffs[1] * 0.488603 * normal.x
+        + sh_coeffs[2] * 0.488603 * normal.z
+        + sh_coeffs[3] * 0.488603 * normal.y
+        + sh_coeffs[4] * 1.092548 * normal.x * normal.z
+        + sh_coeffs[5] * 1.092548 * normal.y * normal.z
+        + sh_coeffs[6] * 1.092548 * normal.y * normal.x
+        + sh_coeffs[7] * (0.946176 * normal.z * normal.z - 0.315392)
+        + sh_coeffs[8] * 0.546274 * (normal.x * normal.x - normal.y * normal.y);
+}
+
 void main() {
     vec4 metal_rough = texture2D(p3d_TextureSelector, v_texcoord);
     float metallic = clamp(p3d_Material.metallic * metal_rough.b, 0.0, 1.0);
@@ -124,18 +147,43 @@ void main() {
     vec4 base_color = p3d_Material.baseColor * v_color * p3d_ColorScale * (texture2D(p3d_TextureFF, v_texcoord) + p3d_TexAlphaOnly);
     vec3 diffuse_color = (base_color.rgb * (vec3(1.0) - F0)) * (1.0 - metallic);
     vec3 spec_color = mix(F0, base_color.rgb, metallic);
+#ifdef USE_NORMAL_MAP
     vec3 normalmap = get_normalmap_data();
+#else
+    vec3 normalmap = vec3(0, 0, 1);
+#endif
     vec3 n = normalize(v_view_tbn * normalmap);
+    vec3 world_normal = normalize(v_world_tbn * normalmap);
     vec3 v = normalize(-v_view_position);
 
+#ifdef USE_OCCLUSION_MAP
+    float ambient_occlusion = metal_rough.r;
+#else
     float ambient_occlusion = 1.0;
+#endif
+    ambient_occlusion *= v_occlude;
 
+#ifdef USE_EMISSION_MAP
+    vec3 emission = p3d_Material.emission.rgb * texture2D(p3d_TextureEmission, v_texcoord).rgb;
+#else
     vec3 emission = vec3(0.0);
+#endif
 
     vec4 color = vec4(vec3(0.0), base_color.a);
 
-    // Indirect diffuse (ambient light)
-    color.rgb += (diffuse_color + spec_color) * ambient_occlusion;
+    float n_dot_v = clamp(abs(dot(n, v)), 0.0, 1.0);
+
+    // Indirect diffuse + specular (IBL)
+    vec3 ibl_f = fresnelSchlickRoughness(n_dot_v, spec_color, perceptual_roughness);
+    vec3 ibl_kd = (1.0 - ibl_f) * (1.0 - metallic);
+    vec3 ibl_diff = base_color.rgb * max(irradiance_from_sh(world_normal), 0.0) * diffuse_function();
+
+    vec3 world_view = normalize(camera_world_position - v_world_position);
+    vec3 ibl_r = reflect(-world_view, world_normal);
+    vec2 env_brdf = texture2D(brdf_lut, vec2(n_dot_v, perceptual_roughness)).rg;
+    vec3 ibl_spec_color = textureCubeLod(filtered_env_map, ibl_r, perceptual_roughness * max_reflection_lod).rgb;
+    vec3 ibl_spec = ibl_spec_color * (ibl_f * env_brdf.x + env_brdf.y);
+    color.rgb += (ibl_kd * ibl_diff  + ibl_spec) * ambient_occlusion;
 
     // Emission
     color.rgb += emission;
