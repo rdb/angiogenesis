@@ -137,7 +137,7 @@ class Tube:
 
     def gen_trench3(self):
         while self.seg_count % 3 != 0:
-            self.seg_count += 1
+            yield self.gen_empty_ring(delta=-1)
 
         segs_entrance = []
         segs_middle = []
