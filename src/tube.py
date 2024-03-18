@@ -8,7 +8,7 @@ NUM_RINGS = 60
 X_SPACING = 2
 Y_SPACING = 10
 SPEED = 10
-AR_FACTOR = pi
+AR_FACTOR = 2
 MIN_SEG_COUNT = 6
 
 SEQ_LENGTH = 10
@@ -31,7 +31,7 @@ class Ring:
 
 
 class Tube:
-    def __init__(self, seed=0):
+    def __init__(self, seed=2):
         self.root = NodePath("root")
         self.root.set_shader(shader)
         self.root.node().set_final(True)
@@ -44,17 +44,18 @@ class Tube:
         self.seg_count = 300
 
         model = loader.load_model('assets/bam/segments.bam')
-        self.passable_trenches = model.find_all_matches('trench_corridor*')
-        self.impassable_trenches = model.find_all_matches('trench_impassable*')
+        self.entrance_trenches = model.find_all_matches('trench1_entrance*')
+        self.exit_trenches = model.find_all_matches('trench1_exit*')
+        self.middle_trenches = model.find_all_matches('trench1_middle*')
+        self.impassable_trenches = model.find_all_matches('trench1_impassable*')
+        self.trench3_middle = model.find('trench3_middle')
+        self.trench3_entrance = model.find('trench3_entrance')
+        self.trench3_exit = model.find('trench3_exit')
         self.tiles = model.find_all_matches('tile_*')
         self.empty_tiles = [self.tiles[0]]
 
-        # Always start with empty
-        self.gen_empty_ring()
-        self.gen_empty_ring()
-
-        while len(self.rings) < NUM_RINGS:
-            self.gen_sequence()
+        self.generator = iter(self.gen_tube())
+        next(self.generator)
 
         taskMgr.add(self.task)
 
@@ -88,12 +89,20 @@ class Tube:
             ring.node_path.remove_node()
 
         while len(self.rings) < NUM_RINGS:
-            self.gen_sequence()
+            next(self.generator)
 
         return task.cont
 
+    def gen_tube(self):
+        # Always start with empty
+        yield self.gen_empty_ring()
+        yield self.gen_empty_ring()
+
+        while True:
+            yield from self.gen_sequence()
+
     def gen_sequence(self):
-        opts = ['regular', 'trench']
+        opts = ['regular', 'trench', 'trench3']
 
         if self.seg_count > MIN_SEG_COUNT:
             opts.append('ramp')
@@ -106,30 +115,71 @@ class Tube:
 
         if stype == 'regular':
             for i in range(SEQ_LENGTH):
-                self.gen_ring(self.random.choices(self.tiles, k=self.seg_count))
+                yield self.gen_ring(self.random.choices(self.tiles, k=self.seg_count))
+
+        elif stype == 'trench3':
+            yield from self.gen_trench3()
 
         elif stype == 'trench':
-            self.gen_trench()
+            yield from self.gen_trench()
 
         elif stype == 'ramp':
-            self.gen_empty_ring(delta=-1)
+            yield self.gen_empty_ring(delta=-1)
 
         elif stype == 'stepdown':
             self.seg_count += 1
-            self.gen_empty_ring()
+            yield self.gen_empty_ring()
 
     def gen_empty_ring(self, delta=0):
         segs = self.random.choices(self.empty_tiles, k=self.seg_count + delta)
-        self.gen_ring(segs)
+        return self.gen_ring(segs)
+
+    def gen_trench3(self):
+        while self.seg_count % 3 != 0:
+            self.seg_count += 1
+
+        segs_entrance = []
+        segs_middle = []
+        segs_exit = []
+        for i in range(0, self.seg_count, 3):
+            segs_entrance.append(self.trench3_entrance)
+            segs_middle.append(self.trench3_middle)
+            segs_exit.append(self.trench3_exit)
+
+        ring = self.gen_ring(segs_entrance, width=3)
+        ring.end_radius += 1
+        yield ring
+
+        ring = self.gen_ring(segs_middle, width=3)
+        ring.start_radius += 1
+        ring.end_radius += 1
+        yield ring
+
+        ring = self.gen_ring(segs_exit, width=3)
+        ring.start_radius += 1
+        yield ring
 
     def gen_trench(self):
         segs_passability = self.random.choices((True, False), k=self.seg_count)
-        for i in range(SEQ_LENGTH):
-            segs = [self.random.choice(self.passable_trenches if p else self.impassable_trenches) for p in range(self.seg_count)]
-            self.gen_ring(segs)
 
-    def gen_ring(self, set):
-        count = len(set)
+        segs = [self.random.choice(self.entrance_trenches if p else self.impassable_trenches) for p in range(self.seg_count)]
+        ring = self.gen_ring(segs)
+        ring.is_trench = True
+        yield ring
+
+        for i in range(SEQ_LENGTH):
+            segs = [self.random.choice(self.middle_trenches if p else self.impassable_trenches) for p in range(self.seg_count)]
+            ring = self.gen_ring(segs)
+            ring.is_trench = True
+            yield ring
+
+        segs = [self.random.choice(self.exit_trenches if p else self.impassable_trenches) for p in range(self.seg_count)]
+        ring = self.gen_ring(segs)
+        ring.is_trench = True
+        yield ring
+
+    def gen_ring(self, set, width=1):
+        count = len(set) * width
         from_radius = self.seg_count / AR_FACTOR
         to_radius = count / AR_FACTOR
 
@@ -144,10 +194,9 @@ class Tube:
         np.node().set_final(True)
         ring.node_path = np
 
-        # for count = 4
         for c, seg in enumerate(set):
             seg = seg.copy_to(np)
-            seg.set_pos(c * X_SPACING, 0, 0)
+            seg.set_pos(c * X_SPACING * width, 0, 0)
 
         np.flatten_strong()
         np.set_y(self.counter * Y_SPACING - self.y)
@@ -155,4 +204,4 @@ class Tube:
         self.rings.append(ring)
         self.counter += 1
         self.seg_count = count
-        return np
+        return ring
