@@ -6,7 +6,7 @@ from math import pi
 
 NUM_RINGS = 60
 X_SPACING = 2
-Y_SPACING = 10
+Y_SPACING = 40
 SPEED = 10
 AR_FACTOR = 2
 MIN_SEG_COUNT = 6
@@ -42,18 +42,25 @@ class Tube:
         self.counter = 0
         self.rings = []
 
-        self.seg_count = 300
+        self.seg_count = 150
 
         model = loader.load_model('assets/bam/segments.bam')
-        self.entrance_trenches = model.find_all_matches('trench1_entrance*')
-        self.exit_trenches = model.find_all_matches('trench1_exit*')
-        self.middle_trenches = model.find_all_matches('trench1_middle*')
-        self.impassable_trenches = model.find_all_matches('trench1_impassable*')
+
+        for n in model.find_all_matches("**/+CollisionNode"):
+            gnode = n.find("**/+GeomNode")
+            gnode.name = n.name
+            gnode.reparent_to(n.get_parent())
+            n.detach_node()
+
+        self.entrance_trenches = model.find_all_matches('trench3_entrance*')
+        self.exit_trenches = model.find_all_matches('trench3_ending*')
+        self.middle_trenches = model.find_all_matches('trench3_middle*')
+        self.impassable_trenches = model.find_all_matches('trench3_impassable*')
         self.trench3_middle = model.find('trench3_middle')
         self.trench3_entrance = model.find('trench3_entrance')
-        self.trench3_exit = model.find('trench3_exit')
-        self.tiles = model.find_all_matches('tile_*')
-        self.empty_tiles = [self.tiles[0]]
+        self.trench3_exit = model.find('trench3_ending')
+        self.tiles = model.find_all_matches('tile1_*')
+        self.empty_tiles = model.find_all_matches('tile1_open*')
 
         self.generator = iter(self.gen_tube())
         next(self.generator)
