@@ -9,7 +9,7 @@ X_SPACING = 2
 Y_SPACING = 10
 SPEED = 10
 AR_FACTOR = pi
-MIN_RADIUS = 2
+MIN_SEG_COUNT = 6
 
 SEQ_LENGTH = 10
 
@@ -19,7 +19,7 @@ shader = Shader.load(Shader.SL_GLSL, "assets/glsl/tube.vert", "assets/glsl/tube.
 
 class Ring:
     def __init__(self):
-        self.is_trench = False
+        pass
 
     def radius_at(self, y):
         t = (y - self.node_path.get_y()) / Y_SPACING + 0.5
@@ -41,16 +41,17 @@ class Tube:
         self.counter = 0
         self.rings = []
 
-        self.next_radius = 80
+        self.seg_count = 300
 
         model = loader.load_model('assets/bam/segments.bam')
-        self.trenches = model.find_all_matches('trench_*')
+        self.passable_trenches = model.find_all_matches('trench_corridor*')
+        self.impassable_trenches = model.find_all_matches('trench_impassable*')
         self.tiles = model.find_all_matches('tile_*')
         self.empty_tiles = [self.tiles[0]]
 
         # Always start with empty
-        self.gen_ring(self.empty_tiles)
-        self.gen_ring(self.empty_tiles)
+        self.gen_empty_ring()
+        self.gen_empty_ring()
 
         while len(self.rings) < NUM_RINGS:
             self.gen_sequence()
@@ -94,7 +95,7 @@ class Tube:
     def gen_sequence(self):
         opts = ['regular', 'trench']
 
-        if self.next_radius > MIN_RADIUS:
+        if self.seg_count > MIN_SEG_COUNT:
             opts.append('ramp')
 
         # Don't put stepdown right after ramp
@@ -105,24 +106,32 @@ class Tube:
 
         if stype == 'regular':
             for i in range(SEQ_LENGTH):
-                self.gen_ring(self.tiles)
+                self.gen_ring(self.random.choices(self.tiles, k=self.seg_count))
 
         elif stype == 'trench':
-            for i in range(SEQ_LENGTH):
-                self.gen_ring(self.trenches)
+            self.gen_trench()
 
         elif stype == 'ramp':
-            for i in range(1):
-                self.gen_ring(self.empty_tiles, radius_delta=-1)
+            self.gen_empty_ring(delta=-1)
 
         elif stype == 'stepdown':
-            self.next_radius += 1
-            self.gen_ring(self.empty_tiles)
+            self.seg_count += 1
+            self.gen_empty_ring()
 
-    def gen_ring(self, set, radius_delta=0):
-        from_radius = self.next_radius
-        to_radius = from_radius + radius_delta
-        count = int(to_radius * AR_FACTOR + 0.5)
+    def gen_empty_ring(self, delta=0):
+        segs = self.random.choices(self.empty_tiles, k=self.seg_count + delta)
+        self.gen_ring(segs)
+
+    def gen_trench(self):
+        segs_passability = self.random.choices((True, False), k=self.seg_count)
+        for i in range(SEQ_LENGTH):
+            segs = [self.random.choice(self.passable_trenches if p else self.impassable_trenches) for p in range(self.seg_count)]
+            self.gen_ring(segs)
+
+    def gen_ring(self, set):
+        count = len(set)
+        from_radius = self.seg_count / AR_FACTOR
+        to_radius = count / AR_FACTOR
 
         ring = Ring()
         ring.num_segments = count
@@ -136,8 +145,7 @@ class Tube:
         ring.node_path = np
 
         # for count = 4
-        for c in range(count):
-            seg = self.random.choice(set)
+        for c, seg in enumerate(set):
             seg = seg.copy_to(np)
             seg.set_pos(c * X_SPACING, 0, 0)
 
@@ -146,5 +154,5 @@ class Tube:
         np.reparent_to(self.root)
         self.rings.append(ring)
         self.counter += 1
-        self.next_radius = to_radius
+        self.seg_count = count
         return np
