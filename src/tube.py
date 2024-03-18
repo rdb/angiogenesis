@@ -44,7 +44,7 @@ class Tube:
 
         self.seg_count = 150
 
-        model = loader.load_model('assets/bam/segments.bam')
+        model = loader.load_model('assets/bam/segments/segments.bam')
 
         for n in model.find_all_matches("**/+CollisionNode"):
             gnode = n.find("**/+GeomNode")

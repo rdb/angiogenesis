@@ -21,7 +21,7 @@ def smoothstep(x):
 class Ship:
     def __init__(self):
         self.root = NodePath("dummy")
-        self.ship = loader.load_model("assets/bam/ship.bam")
+        self.ship = loader.load_model("assets/bam/ship/ship.bam")
         #self.ship.set_hpr(90, 90, 90)
         self.ship.set_scale(0.05)
         self.ship.flatten_strong()
