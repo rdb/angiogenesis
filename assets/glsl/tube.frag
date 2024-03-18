@@ -181,7 +181,7 @@ void main() {
     vec3 world_view = normalize(camera_world_position - v_world_position);
     vec3 ibl_r = reflect(-world_view, world_normal);
     vec2 env_brdf = texture2D(brdf_lut, vec2(n_dot_v, perceptual_roughness)).rg;
-    vec3 ibl_spec_color = textureCubeLod(filtered_env_map, ibl_r, perceptual_roughness * max_reflection_lod).rgb;
+    vec3 ibl_spec_color = textureCubeLod(filtered_env_map, ibl_r.zxy, perceptual_roughness * max_reflection_lod).rgb * 0.5;
     vec3 ibl_spec = ibl_spec_color * (ibl_f * env_brdf.x + env_brdf.y);
     color.rgb += (ibl_kd * ibl_diff  + ibl_spec) * ambient_occlusion;
 

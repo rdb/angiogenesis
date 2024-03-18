@@ -11,7 +11,7 @@ SPEED = 10
 AR_FACTOR = 2
 MIN_SEG_COUNT = 6
 
-SEQ_LENGTH = 3
+SEQ_LENGTH = 10
 SHIP_TRENCH_LOWERING = 0.75
 
 
@@ -32,7 +32,7 @@ class Ring:
 
 
 class Tube:
-    def __init__(self, seed=2):
+    def __init__(self, seed=1):
         self.root = NodePath("root")
         self.root.set_shader(shader)
         self.root.node().set_final(True)
@@ -42,7 +42,7 @@ class Tube:
         self.counter = 0
         self.rings = []
 
-        self.seg_count = 6
+        self.seg_count = 150
 
         model = loader.load_model('assets/bam/segments.bam')
 
@@ -52,20 +52,16 @@ class Tube:
             gnode.reparent_to(n.get_parent())
             n.detach_node()
 
+        self.model = model
         self.entrance_trenches = model.find_all_matches('trench3_entrance*')
         self.exit_trenches = model.find_all_matches('trench3_ending*')
         self.middle_trenches = model.find_all_matches('trench3_middle*')
         self.impassable_trenches = model.find_all_matches('trench3_impassable*')
         self.tile1s = model.find_all_matches('tile1_*')
         self.tile3s = model.find_all_matches('tile3_*')
-        self.empty_tiles = model.find_all_matches('tile1_open*')
+        self.empty_tiles = model.find_all_matches('tile1_open.020')
 
-        self.gen_empty_ring()
-        self.gen_empty_ring()
-
-        while self.seg_count < 150:
-            self.gen_empty_ring(delta=self.seg_count * 4)
-
+        self.next_emptyish = False
         self.generator = iter(self.gen_tube())
         next(self.generator)
 
@@ -108,26 +104,47 @@ class Tube:
     def gen_tube(self):
         # Always start with empty
         yield self.gen_empty_ring()
-        yield self.gen_empty_ring()
+        #yield self.gen_empty_ring()
 
         while True:
             yield from self.gen_sequence()
 
     def gen_sequence(self):
-        opts = ['tile1', 'tile3', 'trench']
+        opts = ['wall1']
 
-        if self.seg_count > MIN_SEG_COUNT:
-            opts.append('ramp')
+        if not self.next_emptyish:
+            opts += ['wall2', 'tile3', 'trench']
+        self.next_emptyish = False
 
         # Don't put stepdown right after ramp
         if self.rings and self.rings[-1].start_radius == self.rings[-1].end_radius:
+            if self.seg_count > MIN_SEG_COUNT:
+                opts.append('ramp')
+
             opts.append('stepdown')
 
         stype = self.random.choice(opts)
 
-        if stype == 'tile1':
-            for i in range(SEQ_LENGTH):
-                yield self.gen_ring(self.random.choices(self.tile1s, k=self.seg_count))
+        if stype == 'wall1':
+            seg1 = self.model.find('tile1_impasssable')
+            seg2 = self.model.find('tile1_gate')
+            segs = [seg1, seg1, seg2, seg1, seg1, seg1]
+            self.random.shuffle(segs)
+            segs = segs * (self.seg_count // 6)
+            while len(segs) < self.seg_count:
+                segs.append(seg1)
+            yield self.gen_ring(segs)
+
+        elif stype == 'wall2':
+            seg1 = self.model.find('tile1_impasssable.001')
+            seg2 = self.model.find('tile1_open')
+            segs = [seg1, seg1, seg2, seg1, seg1, seg1]
+            self.random.shuffle(segs)
+            segs = segs * (self.seg_count // 6)
+            while len(segs) < self.seg_count:
+                segs.append(seg1)
+            yield self.gen_ring(segs)
+            self.next_emptyish = True
 
         elif stype == 'tile3':
             while self.seg_count % 3 != 0:

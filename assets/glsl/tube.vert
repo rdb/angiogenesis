@@ -60,10 +60,10 @@ void main() {
     vec4 world_position = model_position;
 
     //vec2 bending = vec2(sin(y / 200), cos(y / 100)) * 0.01;
-    vec2 bending = vec2(sin(y / 200), world_position.y) * 0.00005;
+    vec2 bending = vec2(sin(y / 200), world_position.y) * 0.00002;
 
-    //world_position.x += world_position.y * world_position.y * bending.x * bending.x;
-    //world_position.z += world_position.y * world_position.y * bending.y * bending.y;
+    world_position.x += world_position.y * world_position.y * bending.x * bending.x;
+    world_position.z += world_position.y * world_position.y * bending.y * bending.y;
 
     vec4 view_position = p3d_ViewMatrix * world_position;
     v_world_position = model_position.xyz;
