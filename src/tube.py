@@ -12,6 +12,7 @@ AR_FACTOR = 2
 MIN_SEG_COUNT = 6
 
 SEQ_LENGTH = 10
+SHIP_TRENCH_LOWERING = 0.75
 
 
 shader = Shader.load(Shader.SL_GLSL, "assets/glsl/tube.vert", "assets/glsl/tube.frag")
@@ -147,16 +148,16 @@ class Tube:
             segs_exit.append(self.trench3_exit)
 
         ring = self.gen_ring(segs_entrance, width=3)
-        ring.end_radius += 1
+        ring.end_radius += SHIP_TRENCH_LOWERING
         yield ring
 
         ring = self.gen_ring(segs_middle, width=3)
-        ring.start_radius += 1
-        ring.end_radius += 1
+        ring.start_radius += SHIP_TRENCH_LOWERING
+        ring.end_radius += SHIP_TRENCH_LOWERING
         yield ring
 
         ring = self.gen_ring(segs_exit, width=3)
-        ring.start_radius += 1
+        ring.start_radius += SHIP_TRENCH_LOWERING
         yield ring
 
     def gen_trench(self):
@@ -164,20 +165,20 @@ class Tube:
 
         segs = [self.random.choice(self.entrance_trenches if p else self.impassable_trenches) for p in range(self.seg_count)]
         ring = self.gen_ring(segs)
-        ring.end_radius += 1
+        ring.end_radius += SHIP_TRENCH_LOWERING
         yield ring
 
         for i in range(SEQ_LENGTH):
             segs = [self.random.choice(self.middle_trenches if p else self.impassable_trenches) for p in range(self.seg_count)]
             ring = self.gen_ring(segs)
-            ring.start_radius += 1
-            ring.end_radius += 1
+            ring.start_radius += SHIP_TRENCH_LOWERING
+            ring.end_radius += SHIP_TRENCH_LOWERING
             yield ring
 
         segs = [self.random.choice(self.exit_trenches if p else self.impassable_trenches) for p in range(self.seg_count)]
         ring = self.gen_ring(segs)
         ring.is_trench = True
-        ring.start_radius += 1
+        ring.start_radius += SHIP_TRENCH_LOWERING
         yield ring
 
     def gen_ring(self, set, width=1):

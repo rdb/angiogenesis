@@ -58,7 +58,7 @@ class ShipControls(DirectObject):
         is_down = base.mouseWatcherNode.is_button_down
 
         current_ring = self.tube.current_ring
-        self.set_ship_z_target(0.1 - current_ring.start_radius)
+        self.set_ship_z_target(0.1 - max(current_ring.start_radius, current_ring.end_radius))
 
         if self.z_t < 1.0:
             self.z_t = min(1.0, self.z_t + base.clock.dt)
