@@ -11,7 +11,7 @@ SPEED = 10
 AR_FACTOR = 2
 MIN_SEG_COUNT = 6
 
-SEQ_LENGTH = 10
+SEQ_LENGTH = 3
 SHIP_TRENCH_LOWERING = 0.75
 
 
@@ -42,7 +42,7 @@ class Tube:
         self.counter = 0
         self.rings = []
 
-        self.seg_count = 150
+        self.seg_count = 6
 
         model = loader.load_model('assets/bam/segments.bam')
 
@@ -56,11 +56,15 @@ class Tube:
         self.exit_trenches = model.find_all_matches('trench3_ending*')
         self.middle_trenches = model.find_all_matches('trench3_middle*')
         self.impassable_trenches = model.find_all_matches('trench3_impassable*')
-        self.trench3_middle = model.find('trench3_middle')
-        self.trench3_entrance = model.find('trench3_entrance')
-        self.trench3_exit = model.find('trench3_ending')
-        self.tiles = model.find_all_matches('tile1_*')
+        self.tile1s = model.find_all_matches('tile1_*')
+        self.tile3s = model.find_all_matches('tile3_*')
         self.empty_tiles = model.find_all_matches('tile1_open*')
+
+        self.gen_empty_ring()
+        self.gen_empty_ring()
+
+        while self.seg_count < 150:
+            self.gen_empty_ring(delta=self.seg_count * 4)
 
         self.generator = iter(self.gen_tube())
         next(self.generator)
@@ -110,7 +114,7 @@ class Tube:
             yield from self.gen_sequence()
 
     def gen_sequence(self):
-        opts = ['regular', 'trench', 'trench3']
+        opts = ['tile1', 'tile3', 'trench']
 
         if self.seg_count > MIN_SEG_COUNT:
             opts.append('ramp')
@@ -121,12 +125,16 @@ class Tube:
 
         stype = self.random.choice(opts)
 
-        if stype == 'regular':
+        if stype == 'tile1':
             for i in range(SEQ_LENGTH):
-                yield self.gen_ring(self.random.choices(self.tiles, k=self.seg_count))
+                yield self.gen_ring(self.random.choices(self.tile1s, k=self.seg_count))
 
-        elif stype == 'trench3':
-            yield from self.gen_trench3()
+        elif stype == 'tile3':
+            while self.seg_count % 3 != 0:
+                yield self.gen_empty_ring(delta=-1)
+
+            for i in range(SEQ_LENGTH):
+                yield self.gen_ring(self.random.choices(self.tile3s, k=self.seg_count // 3), width=3)
 
         elif stype == 'trench':
             yield from self.gen_trench()
@@ -142,48 +150,26 @@ class Tube:
         segs = self.random.choices(self.empty_tiles, k=self.seg_count + delta)
         return self.gen_ring(segs)
 
-    def gen_trench3(self):
+    def gen_trench(self):
         while self.seg_count % 3 != 0:
             yield self.gen_empty_ring(delta=-1)
 
-        segs_entrance = []
-        segs_middle = []
-        segs_exit = []
-        for i in range(0, self.seg_count, 3):
-            segs_entrance.append(self.trench3_entrance)
-            segs_middle.append(self.trench3_middle)
-            segs_exit.append(self.trench3_exit)
+        passability = self.random.choices((True, False), k=self.seg_count // 3)
 
-        ring = self.gen_ring(segs_entrance, width=3)
-        ring.end_radius += SHIP_TRENCH_LOWERING
-        yield ring
-
-        ring = self.gen_ring(segs_middle, width=3)
-        ring.start_radius += SHIP_TRENCH_LOWERING
-        ring.end_radius += SHIP_TRENCH_LOWERING
-        yield ring
-
-        ring = self.gen_ring(segs_exit, width=3)
-        ring.start_radius += SHIP_TRENCH_LOWERING
-        yield ring
-
-    def gen_trench(self):
-        segs_passability = self.random.choices((True, False), k=self.seg_count)
-
-        segs = [self.random.choice(self.entrance_trenches if p else self.impassable_trenches) for p in range(self.seg_count)]
-        ring = self.gen_ring(segs)
+        segs = [self.random.choice(self.entrance_trenches if p else self.impassable_trenches) for p in passability]
+        ring = self.gen_ring(segs, width=3)
         ring.end_radius += SHIP_TRENCH_LOWERING
         yield ring
 
         for i in range(SEQ_LENGTH):
-            segs = [self.random.choice(self.middle_trenches if p else self.impassable_trenches) for p in range(self.seg_count)]
-            ring = self.gen_ring(segs)
+            segs = [self.random.choice(self.middle_trenches if p else self.impassable_trenches) for p in passability]
+            ring = self.gen_ring(segs, width=3)
             ring.start_radius += SHIP_TRENCH_LOWERING
             ring.end_radius += SHIP_TRENCH_LOWERING
             yield ring
 
-        segs = [self.random.choice(self.exit_trenches if p else self.impassable_trenches) for p in range(self.seg_count)]
-        ring = self.gen_ring(segs)
+        segs = [self.random.choice(self.exit_trenches if p else self.impassable_trenches) for p in passability]
+        ring = self.gen_ring(segs, width=3)
         ring.is_trench = True
         ring.start_radius += SHIP_TRENCH_LOWERING
         yield ring

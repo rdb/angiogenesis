@@ -39,7 +39,7 @@ void main() {
 
     //phi += (y + p3d_Vertex.y + p3d_ModelMatrix[3].y) * 0.02;
 
-    float rt = (p3d_Vertex.y / 10 + 0.5);
+    float rt = (p3d_Vertex.y / 40 + 0.5);
     float rad = (radius[1] * rt + radius[0] * (1-rt)) - p3d_Vertex.z;
 
     mat3 basis = mat3(
