@@ -19,6 +19,9 @@ simplepbr.init(
     env_map='assets/env/aircraft_workshop_01.env',
 )
 
+for task in base.taskMgr.getTasksNamed('simplepbr update'):
+    task.sort = 49
+
 alight = AmbientLight('alight')
 alight.set_color((0, 0, 0, 1))
 render.set_light(render.attach_new_node(alight))
