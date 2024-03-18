@@ -164,18 +164,20 @@ class Tube:
 
         segs = [self.random.choice(self.entrance_trenches if p else self.impassable_trenches) for p in range(self.seg_count)]
         ring = self.gen_ring(segs)
-        ring.is_trench = True
+        ring.end_radius += 1
         yield ring
 
         for i in range(SEQ_LENGTH):
             segs = [self.random.choice(self.middle_trenches if p else self.impassable_trenches) for p in range(self.seg_count)]
             ring = self.gen_ring(segs)
-            ring.is_trench = True
+            ring.start_radius += 1
+            ring.end_radius += 1
             yield ring
 
         segs = [self.random.choice(self.exit_trenches if p else self.impassable_trenches) for p in range(self.seg_count)]
         ring = self.gen_ring(segs)
         ring.is_trench = True
+        ring.start_radius += 1
         yield ring
 
     def gen_ring(self, set, width=1):
