@@ -147,27 +147,16 @@ void main() {
     vec4 base_color = p3d_Material.baseColor * v_color * p3d_ColorScale * (texture2D(p3d_TextureFF, v_texcoord) + p3d_TexAlphaOnly);
     vec3 diffuse_color = (base_color.rgb * (vec3(1.0) - F0)) * (1.0 - metallic);
     vec3 spec_color = mix(F0, base_color.rgb, metallic);
-#ifdef USE_NORMAL_MAP
     vec3 normalmap = get_normalmap_data();
-#else
-    vec3 normalmap = vec3(0, 0, 1);
-#endif
     vec3 n = normalize(v_view_tbn * normalmap);
     vec3 world_normal = normalize(v_world_tbn * normalmap);
     vec3 v = normalize(-v_view_position);
 
-#ifdef USE_OCCLUSION_MAP
-    float ambient_occlusion = metal_rough.r;
-#else
+    //float ambient_occlusion = metal_rough.r;
     float ambient_occlusion = 1.0;
-#endif
     ambient_occlusion *= v_occlude;
 
-#ifdef USE_EMISSION_MAP
     vec3 emission = p3d_Material.emission.rgb * texture2D(p3d_TextureEmission, v_texcoord).rgb;
-#else
-    vec3 emission = vec3(0.0);
-#endif
 
     vec4 color = vec4(vec3(0.0), base_color.a);
 
@@ -186,7 +175,7 @@ void main() {
     color.rgb += (ibl_kd * ibl_diff  + ibl_spec) * ambient_occlusion;
 
     // Emission
-    color.rgb += emission;
+    color.rgb += emission * 100;
 
     // Exponential fog
     float fog_distance = length(v_view_position);

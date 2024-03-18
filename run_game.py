@@ -14,6 +14,7 @@ base.set_background_color((0, 0, 0, 1))
 simplepbr.init(
     max_lights=0,
     use_normal_maps=True,
+    use_emission_maps=True,
     enable_shadows=False,
     enable_hardware_skinning=False,
     env_map='assets/env/aircraft_workshop_01.env',
