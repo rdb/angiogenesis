@@ -1,8 +1,11 @@
 from direct.showbase.ShowBase import ShowBase
-from panda3d.core import Shader
+from panda3d.core import load_prc_file, Filename
 
 from src.tube import Tube
 from src.ship import Ship, ShipControls
+
+
+load_prc_file(Filename.expand_from("$MAIN_DIR/settings.prc"))
 
 base = ShowBase()
 base.set_background_color((0, 0, 0, 1))
