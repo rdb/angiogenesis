@@ -3,6 +3,10 @@ from panda3d.core import NodePath
 from direct.showbase.DirectObject import DirectObject
 
 
+from direct.gui.OnscreenText import OnscreenText
+from random import random
+
+
 CAM_TRAIL = 1.5 # units
 CAM_Z_OFFSET = 0.2
 ROT_ACC = -500
@@ -56,7 +60,7 @@ class ShipControls(DirectObject):
             self.z_t = 0.0
             self.z_target = z
 
-    def donk(self, deflect):
+    def donk(self, deflect, pain):
         self.ship.root.set_r(self.ship.root.get_r() - deflect * 360)
 
         if deflect < 0:
@@ -69,6 +73,14 @@ class ShipControls(DirectObject):
             hor = -1
         else:
             hor = 0
+
+        if pain > 0.8:
+            text = OnscreenText('CRASH!', fg=(1, 1, 1, 1), scale=0.5)
+        else:
+            text = OnscreenText('donk', fg=(1, 1-pain, 1-pain, 1), scale=0.05)
+            text.set_pos(hor * 0.5 + random() - 0.5, 0, random() - 0.5)
+        text.set_transparency(1)
+        text.colorScaleInterval(2.0, (1, 1, 1, 0)).start()
 
         self.r_speed = hor * SHIP_DONK_FACTOR
 

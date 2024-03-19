@@ -92,7 +92,8 @@ class Collisions:
         moved = self.cship.get_pos()
         if moved.x != 0 or moved.y != 0:
             deflect = moved.x / current_ring.r_to_x
-            self.controls.donk(deflect)
+            pain = -moved.xy.normalized().y
+            self.controls.donk(deflect, pain)
 
         self.cship.set_pos(0, 0, 0.2)
 
