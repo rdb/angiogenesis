@@ -2,6 +2,9 @@ from panda3d.core import *
 from math import floor, ceil
 
 
+DONK_DEBUG = False
+
+
 class Collisions:
     def __init__(self, tube, controls):
         self.tube = tube
@@ -14,26 +17,28 @@ class Collisions:
 
         self.cship = self.croot.attach_new_node(CollisionNode("ship"))
         self.cship.node().add_solid(CollisionSphere((0, 0, 0), 0.1))
-        self.cship.show()
 
         self.pusher = CollisionHandlerPusher()
         self.pusher.add_collider(self.cship, self.cship)
 
         self.trav = CollisionTraverser()
         self.trav.add_collider(self.cship, self.pusher)
-        self.trav.show_collisions(self.croot)
 
-        lens = PerspectiveLens()
-        lens.set_near_far(0.01, 80)
-        lens.set_fov(30)
-        cam = self.make_debug_camera((0.4, 0.6, 0.7, 0.9), lens=lens)
-        cam.set_y(-5)
+        if DONK_DEBUG:
+            self.cship.show()
+            self.trav.show_collisions(self.croot)
 
-        lens = OrthographicLens()
-        lens.set_film_size(5, 100)
-        lens.set_near_far(-5, 5)
-        cam = self.make_debug_camera((0.8, 0.95, 0.05, 0.95), lens=lens)
-        cam.look_at(0, 0, -1)
+            lens = PerspectiveLens()
+            lens.set_near_far(0.01, 80)
+            lens.set_fov(30)
+            cam = self.make_debug_camera((0.4, 0.6, 0.7, 0.9), lens=lens)
+            cam.set_y(-5)
+
+            lens = OrthographicLens()
+            lens.set_film_size(5, 100)
+            lens.set_near_far(-5, 5)
+            cam = self.make_debug_camera((0.8, 0.95, 0.05, 0.95), lens=lens)
+            cam.look_at(0, 0, -1)
 
         taskMgr.add(self.update, 'update collisions', sort=3)
 
@@ -81,13 +86,15 @@ class Collisions:
 
             if cnode0 is not None:
                 cnode_path = cnode0.copy_to(self.croot)
-                cnode_path.show()
                 cnode_path.set_pos(x0, ring.node_path.get_y(), 0)
+                if DONK_DEBUG:
+                    cnode_path.show()
 
             if cnode1 is not None:
                 cnode_path = cnode1.copy_to(self.croot)
-                cnode_path.show()
                 cnode_path.set_pos(x1, ring.node_path.get_y(), 0)
+                if DONK_DEBUG:
+                    cnode_path.show()
 
         self.trav.traverse(self.croot)
 
