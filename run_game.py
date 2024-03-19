@@ -4,6 +4,7 @@ import simplepbr
 
 from src.tube import Tube
 from src.ship import Ship, ShipControls
+from src.donk import Collisions
 
 
 load_prc_file(Filename.expand_from("$MAIN_DIR/settings.prc"))
@@ -34,6 +35,8 @@ ship = Ship()
 ship.root.reparent_to(render)
 
 controls = ShipControls(ship, tube)
+
+coll = Collisions(tube, controls)
 
 #base.render.set_render_mode_wireframe()
 

@@ -8,7 +8,7 @@ NUM_RINGS = 60
 X_SPACING = 2
 Y_SPACING = 40
 SPEED = 10
-AR_FACTOR = 2
+AR_FACTOR = pi
 MIN_SEG_COUNT = 6
 
 SEQ_LENGTH = 10
@@ -20,11 +20,12 @@ shader = Shader.load(Shader.SL_GLSL, "assets/glsl/tube.vert", "assets/glsl/tube.
 
 class Ring:
     def __init__(self):
-        pass
+        self.collision_nodes = []
+        self.r_to_x = 1
 
     def radius_at(self, y):
         t = (y - self.node_path.get_y()) / Y_SPACING + 0.5
-        t = max(0, min(1, t))
+        #t = max(0, min(1, t))
         return self.end_radius * t + self.start_radius * (1 - t)
 
     def needs_cull(self):
@@ -62,23 +63,28 @@ class Tube:
 
             cnode = n.find("**/+CollisionNode")
             if cnode:
-                cnode.reparent_to(gnode)
+                for i in range(cnode.node().get_num_solids()):
+                    cnode.node().modify_solid(i).set_tangible(True)
+                cnode.detach_node()
                 cnode.hide()
+            else:
+                cnode = None
 
-            self.segments[name] = gnode
+            seg = (gnode, cnode)
+            self.segments[name] = seg
 
             if name.startswith('trench3_entrance'):
-                self.entrance_trenches.append(gnode)
+                self.entrance_trenches.append(seg)
             elif name.startswith('trench3_ending'):
-                self.exit_trenches.append(gnode)
+                self.exit_trenches.append(seg)
             elif name.startswith('trench3_middle'):
-                self.middle_trenches.append(gnode)
+                self.middle_trenches.append(seg)
             elif name.startswith('trench3_impassable'):
-                self.impassable_trenches.append(gnode)
+                self.impassable_trenches.append(seg)
             elif name.startswith('tile1_'):
-                self.tile1s.append(gnode)
+                self.tile1s.append(seg)
             elif name.startswith('tile3_'):
-                self.tile3s.append(gnode)
+                self.tile3s.append(seg)
 
         self.empty_tiles = [self.segments['tile1_open.020']]
 
@@ -93,6 +99,17 @@ class Tube:
         for ring in self.rings:
             if ring.node_path.get_y() > -Y_SPACING / 2.0:
                 return ring
+
+    @property
+    def next_ring(self):
+        take_next = False
+        for ring in self.rings:
+            if take_next:
+                return ring
+            if ring.node_path.get_y() > -Y_SPACING / 2.0:
+                take_next = True
+
+        return next(self.generator)
 
     @property
     def radius(self):
@@ -221,6 +238,7 @@ class Tube:
         ring.num_segments = count
         ring.start_radius = from_radius
         ring.end_radius = to_radius
+        ring.x_spacing = X_SPACING * width
 
         np = NodePath("ring")
         np.set_shader_input("num_segments", count)
@@ -228,9 +246,12 @@ class Tube:
         np.node().set_final(True)
         ring.node_path = np
 
-        for c, seg in enumerate(set):
-            seg = seg.copy_to(np)
-            seg.set_pos(c * X_SPACING * width, 0, 0)
+        ring.r_to_x = count * X_SPACING
+
+        for c, (gnode, cnode) in enumerate(set):
+            gnode = gnode.copy_to(np)
+            gnode.set_pos(c * X_SPACING * width, 0, 0)
+            ring.collision_nodes.append(cnode)
 
         np.flatten_strong()
         np.set_y(self.counter * Y_SPACING - self.y)

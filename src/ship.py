@@ -11,6 +11,7 @@ ROT_BRAKE = 0.01
 
 SHIP_ROLL_ANGLE = 45
 SHIP_ROLL_SPEED = 0.0000001
+SHIP_DONK_FACTOR = 100
 
 
 def smoothstep(x):
@@ -32,7 +33,8 @@ class ShipControls(DirectObject):
     def __init__(self, ship, tube):
         self.ship = ship
         self.tube = tube
-        base.taskMgr.add(self.move)
+        base.taskMgr.add(self.move, sort=2)
+        base.taskMgr.add(self.cam_move, sort=4)
 
         self.cam_root = NodePath("dummy")
         self.cam_root.reparent_to(render)
@@ -53,6 +55,31 @@ class ShipControls(DirectObject):
             self.z_origin = self.ship.ship.get_z()
             self.z_t = 0.0
             self.z_target = z
+
+    def donk(self, deflect):
+        self.ship.root.set_r(self.ship.root.get_r() - deflect * 360)
+
+        if deflect < 0:
+            hor = 1
+        elif deflect > 0:
+            hor = -1
+        elif self.r_speed < 0:
+            hor = 1
+        elif self.r_speed > 0:
+            hor = -1
+
+        self.r_speed = hor * SHIP_DONK_FACTOR
+
+        self.update_ship_rotation(-hor, force=True)
+
+    def update_ship_rotation(self, hor, force=False):
+        target_h = self.r_speed * 60 / ROT_SPEED_LIMIT
+        target_r = hor * SHIP_ROLL_ANGLE
+        if force:
+            t = 0.0
+        else:
+            t = SHIP_ROLL_SPEED ** base.clock.dt
+        self.ship.ship.set_hpr(target_h, 0, target_r * (1 - t) + self.ship.ship.get_r() * t)
 
     def move(self, task):
         is_down = base.mouseWatcherNode.is_button_down
@@ -86,6 +113,14 @@ class ShipControls(DirectObject):
         r = self.ship.root.get_r() + self.r_speed * base.clock.dt / -z
         self.ship.root.set_r(r)
 
+        self.update_ship_rotation(hor)
+
+        return task.cont
+
+    def cam_move(self, task):
+        # This happens after collisions, so that the camera doesn't clip
+        r = self.ship.root.get_r()
+        z = self.ship.ship.get_z()
         self.trail.append((self.tube.y, r, z))
 
         # Calculate ship r 3 seconds ago
@@ -104,13 +139,6 @@ class ShipControls(DirectObject):
 
         self.cam_root.set_r(r)
         base.camera.set_z(z + CAM_Z_OFFSET)
-
-        target_h = self.r_speed * 60 / ROT_SPEED_LIMIT
-
-        target_r = hor * SHIP_ROLL_ANGLE
-        t = SHIP_ROLL_SPEED ** base.clock.dt
-        self.ship.ship.set_hpr(target_h, 0, target_r * (1 - t) + self.ship.ship.get_r() * t)
-
         #base.camera.look_at(self.ship.ship)
 
         return task.cont
