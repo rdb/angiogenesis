@@ -42,6 +42,17 @@ void main() {
     float rt = (p3d_Vertex.y / 40 + 0.5);
     float rad = (radius[1] * rt + radius[0] * (1-rt)) - p3d_Vertex.z;
 
+    model_position.x = sin(phi) * rad;
+    model_position.y = p3d_Vertex.y + p3d_ModelMatrix[3].y;
+    model_position.z = -cos(phi) * rad;
+    model_position.w = 1;
+
+    //vec2 bending = vec2(sin(y / 200), cos(y / 100)) * 0.01;
+    vec2 bending = vec2(sin(y / 200), model_position.y) * 0.00002;
+
+    model_normal += vec3(0, (radius[0] - radius[1]) / 40 + dot(normalize(model_position.xz), bending.xy * 4), 0);
+    model_normal = normalize(model_normal);
+
     mat3 basis = mat3(
       vec3(cos(phi), 0, sin(phi)),
       vec3(0, 1, 0),
@@ -50,17 +61,9 @@ void main() {
     model_normal = basis * model_normal;
     model_tangent = basis * model_tangent;
 
-    model_position.x = sin(phi) * rad;
-    model_position.y = p3d_Vertex.y + p3d_ModelMatrix[3].y;
-    model_position.z = -cos(phi) * rad;
-    model_position.w = 1;
-
-    model_normal = model_normal.zyx;
+    //model_normal = model_normal.zyx;
 
     vec4 world_position = model_position;
-
-    //vec2 bending = vec2(sin(y / 200), cos(y / 100)) * 0.01;
-    vec2 bending = vec2(sin(y / 200), world_position.y) * 0.00002;
 
     world_position.x += world_position.y * world_position.y * bending.x * bending.x;
     world_position.z += world_position.y * world_position.y * bending.y * bending.y;
