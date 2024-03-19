@@ -154,6 +154,9 @@ class ShipControls(DirectObject):
             r = r0 * (1 - yt) + r1 * yt
             z = z0 * (1 - yt) + z1 * yt
 
+        if z > self.ship.ship.get_z() + 0.5:
+            z = self.ship.ship.get_z() + 0.5
+
         self.cam_root.set_r(r)
         base.camera.set_z(z + CAM_Z_OFFSET)
         #base.camera.look_at(self.ship.ship)
