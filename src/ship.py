@@ -67,6 +67,8 @@ class ShipControls(DirectObject):
             hor = 1
         elif self.r_speed > 0:
             hor = -1
+        else:
+            hor = 0
 
         self.r_speed = hor * SHIP_DONK_FACTOR
 
