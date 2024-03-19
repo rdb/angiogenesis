@@ -1,4 +1,4 @@
-from panda3d.core import NodePath, Shader, OmniBoundingVolume
+from panda3d.core import NodePath, Shader, OmniBoundingVolume, NodePathCollection
 
 from random import Random
 from math import pi
@@ -46,20 +46,41 @@ class Tube:
 
         model = loader.load_model('assets/bam/segments/segments.bam')
 
-        for n in model.find_all_matches("**/+CollisionNode"):
-            gnode = n.find("**/+GeomNode")
-            gnode.name = n.name
-            gnode.reparent_to(n.get_parent())
-            n.detach_node()
+        self.entrance_trenches = []#coll.find_all_matches('trench3_entrance*')
+        self.exit_trenches = []#coll.find_all_matches('trench3_ending*')
+        self.middle_trenches = []#coll.find_all_matches('trench3_middle*')
+        self.impassable_trenches = []#coll.find_all_matches('trench3_impassable*')
+        self.tile1s = []#coll.find_all_matches('tile1_*')
+        self.tile3s = []#coll.find_all_matches('tile3_*')
+        self.segments = {}
 
-        self.model = model
-        self.entrance_trenches = model.find_all_matches('trench3_entrance*')
-        self.exit_trenches = model.find_all_matches('trench3_ending*')
-        self.middle_trenches = model.find_all_matches('trench3_middle*')
-        self.impassable_trenches = model.find_all_matches('trench3_impassable*')
-        self.tile1s = model.find_all_matches('tile1_*')
-        self.tile3s = model.find_all_matches('tile3_*')
-        self.empty_tiles = model.find_all_matches('tile1_open.020')
+        for n in model.children:
+            name = n.name
+            gnode = n.find("**/+GeomNode")
+            gnode.name = name
+            gnode.detach_node()
+
+            cnode = n.find("**/+CollisionNode")
+            if cnode:
+                cnode.reparent_to(gnode)
+                cnode.hide()
+
+            self.segments[name] = gnode
+
+            if name.startswith('trench3_entrance'):
+                self.entrance_trenches.append(gnode)
+            elif name.startswith('trench3_ending'):
+                self.exit_trenches.append(gnode)
+            elif name.startswith('trench3_middle'):
+                self.middle_trenches.append(gnode)
+            elif name.startswith('trench3_impassable'):
+                self.impassable_trenches.append(gnode)
+            elif name.startswith('tile1_'):
+                self.tile1s.append(gnode)
+            elif name.startswith('tile3_'):
+                self.tile3s.append(gnode)
+
+        self.empty_tiles = [self.segments['tile1_open.020']]
 
         self.next_emptyish = False
         self.generator = iter(self.gen_tube())
@@ -126,8 +147,8 @@ class Tube:
         stype = self.random.choice(opts)
 
         if stype == 'wall1':
-            seg1 = self.model.find('tile1_impasssable')
-            seg2 = self.model.find('tile1_gate')
+            seg1 = self.segments['tile1_impasssable']
+            seg2 = self.segments['tile1_gate']
             segs = [seg1, seg1, seg2, seg1, seg1, seg1]
             self.random.shuffle(segs)
             segs = segs * (self.seg_count // 6)
@@ -136,8 +157,8 @@ class Tube:
             yield self.gen_ring(segs)
 
         elif stype == 'wall2':
-            seg1 = self.model.find('tile1_impasssable.001')
-            seg2 = self.model.find('tile1_open')
+            seg1 = self.segments['tile1_impasssable.001']
+            seg2 = self.segments['tile1_open']
             segs = [seg1, seg1, seg2, seg1, seg1, seg1]
             self.random.shuffle(segs)
             segs = segs * (self.seg_count // 6)
@@ -157,7 +178,7 @@ class Tube:
             yield from self.gen_trench()
 
         elif stype == 'ramp':
-            yield self.gen_empty_ring(delta=-1)
+            yield self.gen_empty_ring(delta=self.random.randint(-20, 20))
 
         elif stype == 'stepdown':
             self.seg_count += 1
