@@ -15,7 +15,6 @@ class Collisions:
         self.cship = self.croot.attach_new_node(CollisionNode("ship"))
         self.cship.node().add_solid(CollisionSphere((0, 0, 0), 0.1))
         self.cship.show()
-        self.cship.set_z(0.2)
 
         self.pusher = CollisionHandlerPusher()
         self.pusher.add_collider(self.cship, self.cship)
@@ -54,6 +53,9 @@ class Collisions:
     def update(self, task):
         self.croot.node().remove_all_children()
         self.cship.reparent_to(self.croot)
+
+        ship_z = self.controls.get_ship_z_above_ground()
+        self.cship.set_pos(0, 0, ship_z)
 
         ship_r = self.controls.ship.root.get_r() / -360.0
 

@@ -54,6 +54,9 @@ class ShipControls(DirectObject):
 
         self.trail = [(0, 0, base.camera.get_z())]
 
+    def get_ship_z_above_ground(self):
+        return self.ship.ship.get_z() + self.tube.current_ring.radius_at(0.0)
+
     def set_ship_z_target(self, z):
         if z != self.z_target:
             self.z_origin = self.ship.ship.get_z()
