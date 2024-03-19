@@ -16,6 +16,9 @@ ROT_BRAKE = 0.01
 SHIP_ROLL_ANGLE = 45
 SHIP_ROLL_SPEED = 0.0000001
 SHIP_DONK_FACTOR = 100
+SHIP_Z_ACC = 2.0
+
+USE_GRAVITY = False
 
 
 def smoothstep(x):
@@ -51,6 +54,7 @@ class ShipControls(DirectObject):
         self.z_origin = 0.1 - tube.radius
         self.z_target = 0.1 - tube.radius
         self.z_t = 1.0
+        self.z_speed = 0.0
 
         self.trail = [(0, 0, base.camera.get_z())]
 
@@ -104,7 +108,15 @@ class ShipControls(DirectObject):
         current_ring = self.tube.current_ring
         self.set_ship_z_target(0.1 - max(current_ring.start_radius, current_ring.end_radius))
 
-        if self.z_t < 1.0:
+        if USE_GRAVITY:
+            z = self.ship.ship.get_z()
+            if z > self.z_target:
+                self.z_speed -= SHIP_Z_ACC * base.clock.dt
+            elif z < self.z_target:
+                self.z_speed += SHIP_Z_ACC * base.clock.dt
+            z += self.z_speed * base.clock.dt
+
+        elif self.z_t < 1.0:
             self.z_t = min(1.0, self.z_t + base.clock.dt)
             t = smoothstep(self.z_t)
             z = self.z_origin * (1 - t) + self.z_target * t
