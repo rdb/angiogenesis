@@ -76,8 +76,8 @@ class Collisions:
 
             ship_x = ship_r * ring.r_to_x
 
-            x0 = (i0 / seg_count) * ring.r_to_x - ship_x
-            x1 = (i1 / seg_count) * ring.r_to_x - ship_x
+            x0 = (((i0 / seg_count) - ship_r) % 1.0) * ring.r_to_x
+            x1 = (((i1 / seg_count) - ship_r) % 1.0) * ring.r_to_x
 
             if x0 > ring.r_to_x // 2:
                 x0 -= ring.r_to_x
