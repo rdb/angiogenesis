@@ -47,16 +47,21 @@ class Tube:
 
         model = loader.load_model('assets/bam/segments/segments.bam')
 
-        self.entrance_trenches = []#coll.find_all_matches('trench3_entrance*')
-        self.exit_trenches = []#coll.find_all_matches('trench3_ending*')
-        self.middle_trenches = []#coll.find_all_matches('trench3_middle*')
-        self.impassable_trenches = []#coll.find_all_matches('trench3_impassable*')
-        self.tile1s = []#coll.find_all_matches('tile1_*')
-        self.tile3s = []#coll.find_all_matches('tile3_*')
+        self.entrance_trenches = []
+        self.exit_trenches = []
+        self.middle_trenches = []
+        self.impassable_trenches = []
+        self.tile1s = []
+        self.tile3s = []
         self.segments = {}
 
         for n in model.children:
             name = n.name
+            if name.startswith("steel_"):
+                name = name[6:]
+            else:
+                continue
+
             gnode = n.find("**/+GeomNode")
             gnode.name = name
             gnode.detach_node()
