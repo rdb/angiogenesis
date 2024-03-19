@@ -43,8 +43,6 @@ class Tube:
         self.counter = 0
         self.rings = []
 
-        self.seg_count = 150
-
         model = loader.load_model('assets/bam/segments/segments.bam')
 
         self.entrance_trenches = []
@@ -92,6 +90,12 @@ class Tube:
                 self.tile3s.append(seg)
 
         self.empty_tiles = [self.segments['tile1_open.020']]
+
+        self.seg_count = 2
+        self.gen_empty_ring()
+        self.gen_empty_ring(147)
+        for i in self.gen_trench():
+            pass
 
         self.next_emptyish = False
         self.generator = iter(self.gen_tube())
@@ -211,8 +215,9 @@ class Tube:
         return self.gen_ring(segs)
 
     def gen_trench(self):
-        while self.seg_count % 3 != 0:
-            yield self.gen_empty_ring(delta=-1)
+        if self.seg_count % 3 != 0:
+            yield self.gen_empty_ring(delta=-(self.seg_count % 3))
+            #assert self.seg_count % 3 == 0
 
         passability = self.random.choices((True, False), k=self.seg_count // 3)
 
