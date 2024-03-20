@@ -43,16 +43,18 @@ class ShipControls(DirectObject):
         base.taskMgr.add(self.move, sort=2)
         base.taskMgr.add(self.cam_move, sort=4)
 
+        ring = tube.first_ring
+
         self.cam_root = NodePath("dummy")
         self.cam_root.reparent_to(render)
         base.camera.reparent_to(self.cam_root)
-        self.ship.ship.set_pos(0, 0, 0.1 - tube.radius)
+        self.ship.ship.set_pos(0, 0, 0.1 - ring.start_radius)
         base.camera.set_pos(0, 0 - CAM_TRAIL, self.ship.ship.get_z() + CAM_Z_OFFSET)
 
         self.r_speed = 0
 
-        self.z_origin = 0.1 - tube.radius
-        self.z_target = 0.1 - tube.radius
+        self.z_origin = 0.1 - ring.start_radius
+        self.z_target = 0.1 - ring.start_radius
         self.z_t = 1.0
         self.z_speed = 0.0
 

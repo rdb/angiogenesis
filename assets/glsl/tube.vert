@@ -74,7 +74,7 @@ void main() {
     v_color = p3d_Color;
     v_texcoord = (p3d_TextureMatrix * vec4(p3d_MultiTexCoord0, 0, 1)).xy;
 
-    v_occlude = (p3d_Vertex.z + 2.0) / 3.0;
+    v_occlude = min(1.0, (p3d_Vertex.z + 4) / 5.0);
 
     vec3 view_normal = normalize(mat3(p3d_ViewMatrix) * model_normal);
     vec3 view_tangent = normalize(mat3(p3d_ViewMatrix) * model_tangent);

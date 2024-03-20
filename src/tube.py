@@ -2,6 +2,15 @@ from panda3d.core import NodePath, Shader, OmniBoundingVolume, NodePathCollectio
 
 from random import Random
 from math import pi
+from enum import Enum
+
+from .util import RingList
+
+
+class TileNavType:
+    PASSABLE = 1
+    SWERVIBLE = 2 # sic
+    IMPASSABLE = 3
 
 
 NUM_RINGS = 60
@@ -10,9 +19,10 @@ Y_SPACING = 40
 SPEED = 10
 AR_FACTOR = pi
 MIN_SEG_COUNT = 6
+MAX_SWERVE = 6
 
 SEQ_LENGTH = 10
-SHIP_TRENCH_LOWERING = 0.75
+SHIP_TRENCH_LOWERING = 2.75
 
 
 shader = Shader.load(Shader.SL_GLSL, "assets/glsl/tube.vert", "assets/glsl/tube.frag")
@@ -22,6 +32,7 @@ class Ring:
     def __init__(self):
         self.collision_nodes = []
         self.r_to_x = 1
+        self.next_ring = None
 
     def radius_at(self, y):
         t = (y - self.node_path.get_y()) / Y_SPACING + 0.5
@@ -30,6 +41,12 @@ class Ring:
 
     def needs_cull(self):
         return self.node_path.get_y() < -Y_SPACING
+
+    def advance(self, dy):
+        new_y = self.node_path.get_y() - dy
+        self.node_path.set_y(new_y)
+        if self.next_ring:
+            self.next_ring.advance(dy)
 
 
 class Tube:
@@ -41,7 +58,8 @@ class Tube:
         self.random = Random(seed)
         self.y = 0
         self.counter = 0
-        self.rings = []
+        self.first_ring = None
+        self.last_ring = None
 
         model = loader.load_model('assets/bam/segments/segments.bam')
 
@@ -49,7 +67,11 @@ class Tube:
         self.exit_trenches = []
         self.middle_trenches = []
         self.impassable_trenches = []
-        self.tile1s = []
+        self.tile1_by_type = {
+            TileNavType.PASSABLE: [],
+            TileNavType.IMPASSABLE: [],
+            TileNavType.SWERVIBLE: [],
+        }
         self.tile3s = []
         self.segments = {}
 
@@ -79,51 +101,56 @@ class Tube:
 
             if name.startswith('trench3_entrance'):
                 self.entrance_trenches.append(seg)
-            elif name.startswith('trench3_ending'):
+            elif name.startswith('trench3_end'):
                 self.exit_trenches.append(seg)
             elif name.startswith('trench3_middle'):
                 self.middle_trenches.append(seg)
             elif name.startswith('trench3_impassable'):
                 self.impassable_trenches.append(seg)
-            elif name.startswith('tile1_'):
-                self.tile1s.append(seg)
+            elif name.startswith('tile1_open'):
+                self.tile1_open.append(seg)
+            elif name.startswith('tile1_impassable'):
+                self.tile1_by_type[TileNavType.IMPASSABLE].append(seg)
+            elif name.startswith('tile1_swervible'): # sic
+                self.tile1_by_type[TileNavType.SWERVIBLE].append(seg)
+            elif name.startswith('tile1_passable'):
+                self.tile1_by_type[TileNavType.PASSABLE].append(seg)
             elif name.startswith('tile3_'):
                 self.tile3s.append(seg)
 
-        self.empty_tiles = [self.segments['tile1_open.020']]
+        self.empty_tiles = [self.segments['tile1_empty']]
 
         self.seg_count = 2
-        self.gen_empty_ring()
-        self.gen_empty_ring(147)
-        for i in self.gen_trench():
-            pass
-
         self.next_emptyish = False
         self.generator = iter(self.gen_tube())
-        next(self.generator)
+        self.last_ring = next(self.generator)
+        self.first_ring = self.last_ring
+
+        for i in range(NUM_RINGS):
+            next(self.generator)
 
         taskMgr.add(self.task)
 
     @property
     def current_ring(self):
-        for ring in self.rings:
+        ring = self.first_ring
+        while ring is not None:
             if ring.node_path.get_y() > -Y_SPACING / 2.0:
                 return ring
+            ring = ring.next_ring
 
     @property
     def next_ring(self):
-        take_next = False
-        for ring in self.rings:
-            if take_next:
-                return ring
+        ring = self.first_ring
+        while ring is not None:
             if ring.node_path.get_y() > -Y_SPACING / 2.0:
-                take_next = True
+                if ring.next_ring is None:
+                    return next(self.generator)
+                return ring.next_ring
+            ring = ring.next_ring
 
-        return next(self.generator)
-
-    @property
-    def radius(self):
-        return self.rings[0].start_radius
+        self.last_ring = next(self.generator)
+        return self.last_ring
 
     def task(self, task):
         y = task.time * SPEED
@@ -136,68 +163,129 @@ class Tube:
 
         self.root.set_shader_input('y', self.y)
 
-        for i, ring in enumerate(self.rings):
-            new_y = ring.node_path.get_y() - dy
-            ring.node_path.set_y(new_y)
+        self.first_ring.advance(dy)
 
-        while self.rings and self.rings[0].needs_cull():
-            ring = self.rings.pop(0)
+        ring = self.first_ring
+        while ring and ring.needs_cull():
             ring.node_path.remove_node()
+            ring = ring.next_ring
+            self.first_ring = ring
 
-        while len(self.rings) < NUM_RINGS:
-            next(self.generator)
+            # For every ring we remove, create a new one.
+            self.last_ring = next(self.generator)
 
         return task.cont
 
     def gen_tube(self):
         # Always start with empty
+        self.seg_count = 30
         yield self.gen_empty_ring()
-        #yield self.gen_empty_ring()
+
+        #next_types = RingList(self.random.choices((TileNavType.SWERVIBLE, TileNavType.IMPASSABLE), k=self.seg_count))
+        next_types = RingList(self.random.choices((TileNavType.IMPASSABLE, TileNavType.IMPASSABLE, TileNavType.IMPASSABLE, TileNavType.IMPASSABLE, TileNavType.PASSABLE)) * self.seg_count)
+
+        def ensure_passable(types, i, sw_left=0, sw_right=0):
+            if types[i] == TileNavType.PASSABLE:
+                return
+
+            sw_next = (types[i] == TileNavType.SWERVIBLE)
+
+            if (sw_next or sw_left) and types[i - 1] == TileNavType.PASSABLE:
+                return
+
+            if (sw_next or sw_right) and types[i + 1] == TileNavType.PASSABLE:
+                return
+
+            if sw_left and sw_next and types[i - 1] == TileNavType.SWERVIBLE and types[i - 2] == TileNavType.PASSABLE:
+                return
+
+            if sw_right and sw_next and types[i + 1] == TileNavType.SWERVIBLE and types[i + 2] == TileNavType.PASSABLE:
+                return
+
+            choices = [-1, 1]
+            if sw_left:
+                choices.append(-2)
+            if sw_right:
+                choices.append(2)
+
+            choice = self.random.choice(choices)
+            types[i + choice] = TileNavType.PASSABLE
+
+            if (choice < 0 and not sw_left) or (choice > 0 and not sw_right):
+                # To get to this one, need to swerve through the tile ahead
+                types[i] = TileNavType.SWERVIBLE
+
+            if abs(choice) == 2:
+                # To get to this one, the one between it must also be swervible
+                types[i + choice // 2] = TileNavType.SWERVIBLE
+
+        for i in range(self.seg_count):
+            ensure_passable(next_types, i, 1, 1)
+
+        for j in range(10):
+            segs = [self.random.choice(self.tile1_by_type[next_type]) for next_type in next_types]
+            yield self.gen_ring(segs)
+
+            cur_types = next_types
+            #next_types = RingList(self.random.choices((TileNavType.SWERVIBLE, TileNavType.IMPASSABLE), k=self.seg_count))
+            next_types = RingList(self.random.choices((TileNavType.IMPASSABLE, TileNavType.IMPASSABLE, TileNavType.IMPASSABLE, TileNavType.IMPASSABLE, TileNavType.PASSABLE)) * self.seg_count)
+            for i in range(self.seg_count):
+                if cur_types[i] == TileNavType.PASSABLE:
+                    ensure_passable(next_types, i, cur_types[i - 1] != TileNavType.IMPASSABLE, cur_types[i + 1] != TileNavType.IMPASSABLE)
 
         while True:
-            yield from self.gen_sequence()
+            yield self.gen_empty_ring()
 
-    def gen_sequence(self):
-        opts = ['wall1']
+    def gen_wall1(self):
+        seg1 = self.segments['tile1_impassable']
+        seg2 = self.segments['tile1_gate']
+        segs = [seg1, seg1, seg2, seg1, seg1, seg1]
+        self.random.shuffle(segs)
+        segs = segs * (self.seg_count // 6)
+        while len(segs) < self.seg_count:
+            segs.append(seg1)
+        yield self.gen_ring(segs)
 
-        if not self.next_emptyish:
-            opts += ['wall2', 'tile3', 'trench']
-        self.next_emptyish = False
+    def gen_wall2(self):
+        seg1 = self.segments['tile1_impassable.001']
+        seg2 = self.segments['tile1_open']
+        segs = [seg1, seg1, seg2, seg1, seg1, seg1]
+        self.random.shuffle(segs)
+        segs = segs * (self.seg_count // 6)
+        while len(segs) < self.seg_count:
+            segs.append(seg1)
+        yield self.gen_ring(segs)
+        self.next_emptyish = True
 
-        # Don't put stepdown right after ramp
-        if self.rings and self.rings[-1].start_radius == self.rings[-1].end_radius:
-            if self.seg_count > MIN_SEG_COUNT:
-                opts.append('ramp')
+    def gen_obstacle(self):
+        while self.seg_count % 3 != 0:
+            yield self.gen_empty_ring(delta=-1)
 
-            opts.append('stepdown')
+    def gen_sequence(self, stype=None):
+        if stype is None:
+            opts = ['wall1']
 
-        stype = self.random.choice(opts)
+            if not self.next_emptyish:
+                opts += ['wall2', 'tile3', 'trench']
+            self.next_emptyish = False
+
+            # Don't put stepdown right after ramp
+            if self.last_ring and self.last_ring.start_radius == self.last_ring.end_radius:
+                if self.seg_count > MIN_SEG_COUNT:
+                    opts.append('ramp')
+
+                opts.append('stepdown')
+
+            stype = self.random.choice(opts)
 
         if stype == 'wall1':
-            seg1 = self.segments['tile1_impassable']
-            seg2 = self.segments['tile1_gate']
-            segs = [seg1, seg1, seg2, seg1, seg1, seg1]
-            self.random.shuffle(segs)
-            segs = segs * (self.seg_count // 6)
-            while len(segs) < self.seg_count:
-                segs.append(seg1)
-            yield self.gen_ring(segs)
+
+            self.gen_wall1()
 
         elif stype == 'wall2':
-            seg1 = self.segments['tile1_impassable.001']
-            seg2 = self.segments['tile1_open']
-            segs = [seg1, seg1, seg2, seg1, seg1, seg1]
-            self.random.shuffle(segs)
-            segs = segs * (self.seg_count // 6)
-            while len(segs) < self.seg_count:
-                segs.append(seg1)
-            yield self.gen_ring(segs)
-            self.next_emptyish = True
+            self.gen_wall2()
 
         elif stype == 'tile3':
-            while self.seg_count % 3 != 0:
-                yield self.gen_empty_ring(delta=-1)
-
             for i in range(SEQ_LENGTH):
                 yield self.gen_ring(self.random.choices(self.tile3s, k=self.seg_count // 3), width=3)
 
@@ -240,7 +328,7 @@ class Tube:
         ring.start_radius += SHIP_TRENCH_LOWERING
         yield ring
 
-    def gen_ring(self, set, width=1):
+    def gen_ring(self, set, width=1, branch=None):
         count = len(set) * width
         from_radius = self.seg_count / AR_FACTOR
         to_radius = count / AR_FACTOR
@@ -267,7 +355,16 @@ class Tube:
         np.flatten_strong()
         np.set_y(self.counter * Y_SPACING - self.y)
         np.reparent_to(self.root)
-        self.rings.append(ring)
+
+        if branch is None:
+            if self.last_ring is not None:
+                self.last_ring.next_ring = ring
+            self.last_ring = ring
+        else:
+            if self.last_ring is not None:
+                self.last_ring.next_ring = ring
+            self.last_ring = ring
+
         self.counter += 1
         self.seg_count = count
         return ring
