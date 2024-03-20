@@ -60,20 +60,21 @@ class Tube:
             else:
                 continue
 
-            gnode = n.find("**/+GeomNode")
-            gnode.name = name
-            gnode.detach_node()
-
             cnode = n.find("**/+CollisionNode")
             if cnode:
                 for i in range(cnode.node().get_num_solids()):
                     cnode.node().modify_solid(i).set_tangible(True)
                 cnode.detach_node()
                 cnode.hide()
+                for c in cnode.children:
+                    c.reparent_to(n)
             else:
                 cnode = None
 
-            seg = (gnode, cnode)
+            n.clear_transform()
+            n.flatten_strong()
+
+            seg = (n, cnode)
             self.segments[name] = seg
 
             if name.startswith('trench3_entrance'):
@@ -173,7 +174,7 @@ class Tube:
         stype = self.random.choice(opts)
 
         if stype == 'wall1':
-            seg1 = self.segments['tile1_impasssable']
+            seg1 = self.segments['tile1_impassable']
             seg2 = self.segments['tile1_gate']
             segs = [seg1, seg1, seg2, seg1, seg1, seg1]
             self.random.shuffle(segs)
@@ -183,7 +184,7 @@ class Tube:
             yield self.gen_ring(segs)
 
         elif stype == 'wall2':
-            seg1 = self.segments['tile1_impasssable.001']
+            seg1 = self.segments['tile1_impassable.001']
             seg2 = self.segments['tile1_open']
             segs = [seg1, seg1, seg2, seg1, seg1, seg1]
             self.random.shuffle(segs)
