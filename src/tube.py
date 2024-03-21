@@ -21,6 +21,7 @@ class NavType:
     TUNNEL = 4 # non-swervable but passable
 
 
+LEVEL = 'steel'
 NUM_RINGS = 30
 X_SPACING = 2
 Y_SPACING = 40
@@ -127,7 +128,9 @@ class Tube:
 
         for n in model.children:
             name = n.name
-            if name.startswith("steel_"):
+            if name.startswith(LEVEL + "_"):
+                name = name[len(LEVEL)+1:]
+            elif LEVEL == 'rift' and name.startswith('steel_tile1_transition'):
                 name = name[6:]
             else:
                 continue
@@ -160,6 +163,9 @@ class Tube:
             else:
                 cnp = None
 
+            # Code isn't handling multiple collision nodes yet
+            assert not n.find("**/+CollisionNode")
+            n.find_all_matches("**/+CollisionNode").detach()
 
             n.clear_transform()
             n.flatten_strong()
@@ -187,6 +193,8 @@ class Tube:
                 self.tile3_by_type[NavType.IMPASSABLE].append(seg)
             elif name.startswith('tile3_swervible'): # sic
                 self.tile3_by_type[NavType.SWERVIBLE].append(seg)
+            elif name.startswith('tile3_swirvible'): # double-sic
+                self.tile3_by_type[NavType.SWERVIBLE].append(seg)
             elif name.startswith('tile3_passable_tunnel'):
                 self.tile3_by_type[NavType.TUNNEL].append(seg)
             elif name.startswith('tile3_passable'):
@@ -194,7 +202,7 @@ class Tube:
 
         print(f"Removed {num_culled} of {num_nonculled + num_culled} collision polygons.")
 
-        self.empty_tiles = [self.segments['tile1_empty']]
+        self.empty_tiles = [self.segments['tile3_empty']]
 
         self.seg_count = 20
         self.next_emptyish = False
@@ -396,6 +404,10 @@ class Tube:
     def gen_tile_section(self, width=None):
         if width is None:
             width = self.random.choice((1, 3))
+
+        if len(self.tile1_by_type[NavType.PASSABLE]) == 0:
+            width = 3
+
         count = int(ceil(self.seg_count / width))
 
         tiles = self.tile3_by_type if width == 3 else self.tile1_by_type
@@ -437,7 +449,13 @@ class Tube:
         self.next_emptyish = True
 
     def gen_passable_ring(self, delta=0):
-        segs = self.random.choices(self.tile1_by_type[NavType.PASSABLE], k=self.seg_count + delta)
+        tiles = self.tile1_by_type[NavType.PASSABLE]
+        width = 1
+        if not tiles:
+            tiles = self.tile3_by_type[NavType.PASSABLE]
+            width = 3
+
+        segs = self.random.choices(self.tile1_by_type[NavType.PASSABLE], k=int(ceil((self.seg_count + delta) / 3)))
         ring = self.gen_ring(segs)
 
         for i in range(len(segs)):
