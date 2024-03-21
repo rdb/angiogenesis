@@ -6,6 +6,8 @@ from src.tube import Tube
 from src.ship import Ship, ShipControls
 from src.donk import Collisions
 
+from math import ceil
+
 
 load_prc_file(Filename.expand_from("$MAIN_DIR/settings.prc"))
 
@@ -36,7 +38,22 @@ ship.root.reparent_to(render)
 
 controls = ShipControls(ship, tube)
 
-coll = Collisions(tube, controls)
+donk = Collisions(tube, controls)
+
+
+def update(task):
+    # Run simulation at least every 20 ms
+    dt = base.clock.dt
+    num_steps = ceil(dt / 0.020)
+    dt /= num_steps
+    num_steps = min(10, num_steps)
+    for i in range(num_steps):
+        tube.update(dt)
+        controls.update(dt)
+        donk.update(dt)
+    return task.cont
+
+base.taskMgr.add(update, sort=1)
 
 #base.render.set_render_mode_wireframe()
 

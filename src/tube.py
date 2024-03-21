@@ -195,8 +195,6 @@ class Tube:
         for i in range(NUM_RINGS):
             next(self.generator)
 
-        taskMgr.add(self.task)
-
     @property
     def current_ring(self):
         ring = self.first_ring
@@ -218,14 +216,12 @@ class Tube:
         self.last_ring = next(self.generator)
         return self.last_ring
 
-    def task(self, task):
-        y = task.time * SPEED
-        if self.y == 0:
-            dy = 0
-        else:
-            dy = y - self.y
+    def update(self, dt):
+        dy = dt * SPEED
+        self.y += dy
 
-        self.y = y
+        if self.y == dy:
+            dy = 0
 
         self.root.set_shader_input('y', self.y)
 
@@ -239,8 +235,6 @@ class Tube:
 
             # For every ring we remove, create a new one.
             self.last_ring = next(self.generator)
-
-        return task.cont
 
     def gen_tube(self):
         # Always start with empty

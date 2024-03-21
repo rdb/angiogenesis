@@ -42,7 +42,6 @@ class ShipControls(DirectObject):
     def __init__(self, ship, tube):
         self.ship = ship
         self.tube = tube
-        base.taskMgr.add(self.move, sort=2)
         base.taskMgr.add(self.cam_move, sort=4)
 
         ring = tube.first_ring
@@ -106,7 +105,7 @@ class ShipControls(DirectObject):
             t = SHIP_ROLL_SPEED ** base.clock.dt
         self.ship.ship.set_hpr(target_h, 0, target_r * (1 - t) + self.ship.ship.get_r() * t)
 
-    def move(self, task):
+    def update(self, dt):
         is_down = base.mouseWatcherNode.is_button_down
 
         current_ring = self.tube.current_ring
@@ -115,13 +114,13 @@ class ShipControls(DirectObject):
         if USE_GRAVITY:
             z = self.ship.ship.get_z()
             if z > self.z_target:
-                self.z_speed -= SHIP_Z_ACC * base.clock.dt
+                self.z_speed -= SHIP_Z_ACC * dt
             elif z < self.z_target:
-                self.z_speed += SHIP_Z_ACC * base.clock.dt
-            z += self.z_speed * base.clock.dt
+                self.z_speed += SHIP_Z_ACC * dt
+            z += self.z_speed * dt
 
         elif self.z_t < 1.0:
-            self.z_t = min(1.0, self.z_t + base.clock.dt)
+            self.z_t = min(1.0, self.z_t + dt)
             t = smoothstep(self.z_t)
             z = self.z_origin * (1 - t) + self.z_target * t
         else:
@@ -133,7 +132,7 @@ class ShipControls(DirectObject):
         hor = is_down('arrow_right') - is_down('arrow_left')
 
         if hor != 0:
-            self.r_speed += hor * base.clock.dt * ROT_ACC
+            self.r_speed += hor * dt * ROT_ACC
 
             if abs(self.r_speed) > ROT_SPEED_LIMIT:
                 if self.r_speed > 0:
@@ -141,14 +140,12 @@ class ShipControls(DirectObject):
                 else:
                     self.r_speed = -ROT_SPEED_LIMIT
         else:
-            self.r_speed *= ROT_BRAKE ** base.clock.dt
+            self.r_speed *= ROT_BRAKE ** dt
 
-        r = self.ship.root.get_r() + self.r_speed * base.clock.dt / -z
+        r = self.ship.root.get_r() + self.r_speed * dt / -z
         self.ship.root.set_r(r)
 
         self.update_ship_rotation(hor)
-
-        return task.cont
 
     def cam_move(self, task):
         # This happens after collisions, so that the camera doesn't clip

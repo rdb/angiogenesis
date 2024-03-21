@@ -40,8 +40,6 @@ class Collisions:
             cam = self.make_debug_camera((0.8, 0.95, 0.05, 0.95), lens=lens)
             cam.look_at(0, 0, -1)
 
-        taskMgr.add(self.update, 'update collisions', sort=3)
-
     def make_debug_camera(self, frame, lens):
         frame = Vec4(frame)
 
@@ -55,7 +53,7 @@ class Collisions:
         camera.reparent_to(self.cship)
         return camera
 
-    def update(self, task):
+    def update(self, dt):
         self.croot.node().remove_all_children()
         self.cship.reparent_to(self.croot)
 
@@ -105,5 +103,3 @@ class Collisions:
             self.controls.donk(deflect, pain)
 
         self.cship.set_pos(0, 0, ship_z)
-
-        return task.cont
