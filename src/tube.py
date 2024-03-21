@@ -1,4 +1,10 @@
-from panda3d.core import NodePath, Shader, OmniBoundingVolume, NodePathCollection
+from panda3d.core import (
+    NodePath,
+    Shader,
+    OmniBoundingVolume,
+    NodePathCollection,
+    CollisionPolygon,
+)
 
 from random import Random
 from math import pi
@@ -23,6 +29,28 @@ MAX_SWERVE = 6
 
 SEQ_LENGTH = 10
 TRENCH_DEPTH = 2.5
+
+
+def should_cull_collision_poly(name, solid):
+    if abs(solid.normal.z) > 0.7 or solid.normal.y > 0.2:
+        # not facing towards front
+        return True
+
+    lowest_z = 100.0
+    highest_z = -100.0
+    for point in solid.points:
+        if point.z < lowest_z:
+            lowest_z = point.z
+        if point.z > highest_z:
+            highest_z = point.z
+
+    if 'trench3_middle' in name and (lowest_z > -2 or highest_z <= -3):
+        return True
+
+    if 'trench' not in name and (lowest_z > 0.5 or highest_z <= 0):
+        return True
+
+    return False
 
 
 shader = Shader.load(Shader.SL_GLSL, "assets/glsl/tube.vert", "assets/glsl/tube.frag")
@@ -82,28 +110,50 @@ class Tube:
         self.tile3s = []
         self.segments = {}
 
+        num_culled = 0
+        num_nonculled = 0
+
         for n in model.children:
             name = n.name
             if name.startswith("steel_"):
+                print(name)
                 name = name[6:]
             else:
                 continue
 
-            cnode = n.find("**/+CollisionNode")
-            if cnode:
-                for i in range(cnode.node().get_num_solids()):
-                    cnode.node().modify_solid(i).set_tangible(True)
-                cnode.detach_node()
-                cnode.hide()
-                for c in cnode.children:
+            cnp = n.find("**/+CollisionNode")
+            if cnp:
+                cnode = cnp.node()
+                num_solids = cnode.get_num_solids()
+                i = 0
+                while i < num_solids:
+                    solid = cnode.modify_solid(i)
+                    if isinstance(solid, CollisionPolygon):
+                        if should_cull_collision_poly(name, solid):
+                            cnode.remove_solid(i)
+                            num_solids -= 1
+                            num_culled += 1
+                            continue
+
+                    cnode.modify_solid(i).set_tangible(True)
+                    i += 1
+                    num_nonculled += 1
+
+                cnp.detach_node()
+                cnp.hide()
+                for c in cnp.children:
                     c.reparent_to(n)
+
+                if num_solids == 0:
+                    cnp = None
             else:
-                cnode = None
+                cnp = None
+
 
             n.clear_transform()
             n.flatten_strong()
 
-            seg = (n, cnode)
+            seg = (n, cnp)
             self.segments[name] = seg
 
             if name.startswith('trench3_entrance'):
@@ -124,6 +174,8 @@ class Tube:
                 self.tile1_by_type[TileNavType.PASSABLE].append(seg)
             elif name.startswith('tile3_'):
                 self.tile3s.append(seg)
+
+        print(f"Removed {num_culled} of {num_nonculled + num_culled} collision polygons.")
 
         self.empty_tiles = [self.segments['tile1_empty']]
 
