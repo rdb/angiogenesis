@@ -25,6 +25,8 @@ varying mat3 v_world_tbn;
 
 uniform int num_segments;
 uniform vec2 radius;
+uniform vec2 start_center;
+uniform vec2 end_center;
 uniform float y;
 //uniform vec2 bending;
 
@@ -46,6 +48,9 @@ void main() {
     model_position.y = p3d_Vertex.y + p3d_ModelMatrix[3].y;
     model_position.z = -cos(phi) * rad;
     model_position.w = 1;
+
+    vec2 center = (end_center * rt + start_center * (1-rt));
+    model_position.xz += center;
 
     //vec2 bending = vec2(sin(y / 200), cos(y / 100)) * 0.01;
     vec2 bending = vec2(sin(y / 200), model_position.y) * 0.00002;

@@ -4,10 +4,11 @@ from panda3d.core import (
     OmniBoundingVolume,
     NodePathCollection,
     CollisionPolygon,
+    Vec2,
 )
 
 from random import Random
-from math import pi, ceil
+from math import pi, tau, ceil, cos, sin
 from enum import Enum
 
 from .util import RingList
@@ -90,6 +91,8 @@ class Tube:
         self.root.set_shader(shader)
         self.root.node().set_final(True)
         self.root.node().set_bounds(OmniBoundingVolume())
+        self.branch_root = self.root.attach_new_node("trunk")
+        self.branch_root.set_shader_inputs(start_center=(0, 0), end_center=(0, 0))
         self.random = Random(seed)
         self.y = 0
         self.counter = 0
@@ -191,30 +194,17 @@ class Tube:
         self.generator = iter(self.gen_tube())
         self.last_ring = next(self.generator)
         self.first_ring = self.last_ring
+        self.current_ring = self.first_ring
 
         for i in range(NUM_RINGS):
             next(self.generator)
 
     @property
-    def current_ring(self):
-        ring = self.first_ring
-        while ring is not None:
-            if ring.node_path.get_y() > -Y_SPACING / 2.0:
-                return ring
-            ring = ring.next_ring
-
-    @property
     def next_ring(self):
-        ring = self.first_ring
-        while ring is not None:
-            if ring.node_path.get_y() > -Y_SPACING / 2.0:
-                if ring.next_ring is None:
-                    return next(self.generator)
-                return ring.next_ring
-            ring = ring.next_ring
-
-        self.last_ring = next(self.generator)
-        return self.last_ring
+        ring = self.current_ring
+        if ring.next_ring is None:
+            return next(self.generator)
+        return ring.next_ring
 
     def update(self, dt):
         dy = dt * SPEED
@@ -228,6 +218,17 @@ class Tube:
         self.first_ring.advance(dy)
 
         ring = self.first_ring
+        while ring is not None:
+            if ring.node_path.get_y() > -Y_SPACING / 2.0:
+                self.current_ring = ring
+                if self.branch_root != ring.branch_root:
+                    self.branch_root.detach_node()
+                    self.branch_root = ring.branch_root
+                    self.branch_root.set_shader_inputs(start_center=(0, 0), end_center=(0, 0))
+                break
+            ring = ring.next_ring
+
+        ring = self.first_ring
         while ring and ring.needs_cull():
             ring.node_path.remove_node()
             ring = ring.next_ring
@@ -238,14 +239,39 @@ class Tube:
 
     def gen_tube(self):
         # Always start with empty
-        self.seg_count = 30
+        self.seg_count = 40
         yield self.gen_empty_ring()
 
         while True:
+            yield self.gen_empty_ring()
+            yield from self.gen_transition(5)
+            yield self.gen_empty_ring()
             yield from self.gen_tile_section()
             yield self.gen_empty_ring()
             yield from self.gen_trench()
             yield self.gen_empty_ring()
+
+    def gen_transition(self, to_segs):
+        tuns = [False, True, False, False] * max(self.seg_count // 4, 1)
+        ring = self.gen_ring([self.segments['tile1_transition'] if tun else self.segments['tile1_transition_impassable'] for tun in tuns])
+        ring.end_depth = 3.0
+        yield ring
+
+        branch_root = NodePath('branch')
+
+        rad = (to_segs - len(tuns)) / AR_FACTOR - 3
+        fac = tau / self.seg_count
+        for seg in range(self.seg_count):
+            if tuns[seg]:
+                center = Vec2(-sin(seg * fac), cos(seg * fac)) * rad
+                inst = self.root.attach_new_node('inst')
+                branch_root.instance_to(inst)
+                inst.set_shader_inputs(start_center=center, end_center=center)
+
+        self.seg_count = to_segs
+        segs = self.random.choices(self.empty_tiles, k=to_segs)
+        ring = self.gen_ring(segs, branch_root=branch_root)
+        yield ring
 
     def gen_tile_section(self):
         width = self.random.choice((1, 3))
@@ -414,16 +440,20 @@ class Tube:
         ring.start_depth = TRENCH_DEPTH
         yield ring
 
-    def gen_ring(self, set, width=1, branch=None):
+    def gen_ring(self, set, width=1, branch_root=None):
         count = len(set) * width
         from_radius = self.seg_count / AR_FACTOR
         to_radius = count / AR_FACTOR
+
+        if branch_root is None:
+            branch_root = self.last_ring.branch_root if self.last_ring else self.branch_root
 
         ring = Ring()
         ring.num_segments = count
         ring.start_radius = from_radius
         ring.end_radius = to_radius
         ring.x_spacing = X_SPACING * width
+        ring.branch_root = branch_root
 
         np = NodePath("ring")
         np.set_shader_input("num_segments", count)
@@ -440,16 +470,11 @@ class Tube:
 
         np.flatten_strong()
         np.set_y(self.counter * Y_SPACING - self.y)
-        np.reparent_to(self.root)
+        np.reparent_to(ring.branch_root)
 
-        if branch is None:
-            if self.last_ring is not None:
-                self.last_ring.next_ring = ring
-            self.last_ring = ring
-        else:
-            if self.last_ring is not None:
-                self.last_ring.next_ring = ring
-            self.last_ring = ring
+        if self.last_ring is not None:
+            self.last_ring.next_ring = ring
+        self.last_ring = ring
 
         self.counter += 1
         self.seg_count = count
