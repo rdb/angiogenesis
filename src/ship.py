@@ -18,6 +18,8 @@ SHIP_ROLL_SPEED = 0.0000001
 SHIP_DONK_FACTOR = 100
 SHIP_Z_ACC = 2.0
 
+SHIP_HEIGHT = 0.1
+
 USE_GRAVITY = False
 
 
@@ -48,13 +50,13 @@ class ShipControls(DirectObject):
         self.cam_root = NodePath("dummy")
         self.cam_root.reparent_to(render)
         base.camera.reparent_to(self.cam_root)
-        self.ship.ship.set_pos(0, 0, 0.1 - ring.start_radius)
+        self.ship.ship.set_pos(0, 0, SHIP_HEIGHT - ring.start_radius)
         base.camera.set_pos(0, 0 - CAM_TRAIL, self.ship.ship.get_z() + CAM_Z_OFFSET)
 
         self.r_speed = 0
 
-        self.z_origin = 0.1 - ring.start_radius
-        self.z_target = 0.1 - ring.start_radius
+        self.z_origin = SHIP_HEIGHT - ring.start_radius
+        self.z_target = SHIP_HEIGHT - ring.start_radius
         self.z_t = 1.0
         self.z_speed = 0.0
 
@@ -108,7 +110,7 @@ class ShipControls(DirectObject):
         is_down = base.mouseWatcherNode.is_button_down
 
         current_ring = self.tube.current_ring
-        self.set_ship_z_target(0.1 - max(current_ring.start_radius, current_ring.end_radius))
+        self.set_ship_z_target(SHIP_HEIGHT - max(current_ring.start_radius + current_ring.start_depth, current_ring.end_radius + current_ring.end_depth))
 
         if USE_GRAVITY:
             z = self.ship.ship.get_z()
@@ -125,7 +127,7 @@ class ShipControls(DirectObject):
         else:
             z = self.z_target
 
-        z = max(z, 0.1 - current_ring.radius_at(0.0))
+        z = max(z, SHIP_HEIGHT - current_ring.radius_at(0.0) - current_ring.depth_at(0.0))
         self.ship.ship.set_z(z)
 
         hor = is_down('arrow_right') - is_down('arrow_left')

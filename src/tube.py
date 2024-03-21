@@ -22,7 +22,7 @@ MIN_SEG_COUNT = 6
 MAX_SWERVE = 6
 
 SEQ_LENGTH = 10
-SHIP_TRENCH_LOWERING = 2.75
+TRENCH_DEPTH = 2.5
 
 
 shader = Shader.load(Shader.SL_GLSL, "assets/glsl/tube.vert", "assets/glsl/tube.frag")
@@ -33,11 +33,18 @@ class Ring:
         self.collision_nodes = []
         self.r_to_x = 1
         self.next_ring = None
+        self.start_depth = 0.0
+        self.end_depth = 0.0
 
     def radius_at(self, y):
         t = (y - self.node_path.get_y()) / Y_SPACING + 0.5
         #t = max(0, min(1, t))
         return self.end_radius * t + self.start_radius * (1 - t)
+
+    def depth_at(self, y):
+        t = (y - self.node_path.get_y()) / Y_SPACING + 0.5
+        #t = max(0, min(1, t))
+        return self.end_depth * t + self.start_depth * (1 - t)
 
     def needs_cull(self):
         return self.node_path.get_y() < -Y_SPACING
@@ -181,6 +188,13 @@ class Tube:
         self.seg_count = 30
         yield self.gen_empty_ring()
 
+        while True:
+            yield from self.gen_tile1_section()
+            yield self.gen_empty_ring()
+            yield from self.gen_trench()
+            yield self.gen_empty_ring()
+
+    def gen_tile1_section(self):
         #next_types = RingList(self.random.choices((TileNavType.SWERVIBLE, TileNavType.IMPASSABLE), k=self.seg_count))
         next_types = RingList(self.random.choices((TileNavType.IMPASSABLE, TileNavType.IMPASSABLE, TileNavType.IMPASSABLE, TileNavType.IMPASSABLE, TileNavType.PASSABLE)) * self.seg_count)
 
@@ -232,9 +246,6 @@ class Tube:
             for i in range(self.seg_count):
                 if cur_types[i] == TileNavType.PASSABLE:
                     ensure_passable(next_types, i, cur_types[i - 1] != TileNavType.IMPASSABLE, cur_types[i + 1] != TileNavType.IMPASSABLE)
-
-        while True:
-            yield self.gen_empty_ring()
 
     def gen_wall1(self):
         seg1 = self.segments['tile1_impassable']
@@ -312,20 +323,20 @@ class Tube:
 
         segs = [self.random.choice(self.entrance_trenches if p else self.impassable_trenches) for p in passability]
         ring = self.gen_ring(segs, width=3)
-        ring.end_radius += SHIP_TRENCH_LOWERING
+        ring.end_depth = TRENCH_DEPTH
         yield ring
 
         for i in range(SEQ_LENGTH):
             segs = [self.random.choice(self.middle_trenches if p else self.impassable_trenches) for p in passability]
             ring = self.gen_ring(segs, width=3)
-            ring.start_radius += SHIP_TRENCH_LOWERING
-            ring.end_radius += SHIP_TRENCH_LOWERING
+            ring.start_depth = TRENCH_DEPTH
+            ring.end_depth = TRENCH_DEPTH
             yield ring
 
         segs = [self.random.choice(self.exit_trenches if p else self.impassable_trenches) for p in passability]
         ring = self.gen_ring(segs, width=3)
         ring.is_trench = True
-        ring.start_radius += SHIP_TRENCH_LOWERING
+        ring.start_depth = TRENCH_DEPTH
         yield ring
 
     def gen_ring(self, set, width=1, branch=None):

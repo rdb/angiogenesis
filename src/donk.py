@@ -104,6 +104,6 @@ class Collisions:
             pain = -moved.xy.normalized().y
             self.controls.donk(deflect, pain)
 
-        self.cship.set_pos(0, 0, 0.2)
+        self.cship.set_pos(0, 0, ship_z)
 
         return task.cont
