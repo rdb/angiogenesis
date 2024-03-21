@@ -455,7 +455,7 @@ class Tube:
             tiles = self.tile3_by_type[NavType.PASSABLE]
             width = 3
 
-        segs = self.random.choices(self.tile1_by_type[NavType.PASSABLE], k=int(ceil((self.seg_count + delta) / 3)))
+        segs = self.random.choices(tiles, k=int(ceil((self.seg_count + delta) / 3)))
         ring = self.gen_ring(segs)
 
         for i in range(len(segs)):
