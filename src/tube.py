@@ -382,13 +382,16 @@ class Tube:
         self.seg_count = 2
         self.ts_level = self.ts_steel
         yield self.gen_empty_ring(delta=18)
-        yield from self.gen_tile_section(1)
+
+        yield self.gen_empty_ring(delta=10)
         yield from self.gen_tile_section(3)
-        yield from self.gen_transition(6)
+        yield from self.gen_trench()
+        yield self.gen_passable_ring(delta=30)
+        yield self.gen_empty_ring(delta=60)
+        yield self.gen_passable_ring(delta=30)
+        yield from self.gen_tile_section(3)
         yield from self.gen_tile_section(1)
         yield from self.gen_trench()
-        yield from self.gen_tile_section(3)
-        yield from self.gen_transition(6)
 
     def gen_rift_level(self):
         self.ts_level = self.ts_rift

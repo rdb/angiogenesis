@@ -58,9 +58,10 @@ void main() {
 
     //vec2 bending = vec2(sin(y / 20), cos(y / 10)) * 0.0001 * effect_fac;
     //vec2 bending = vec2(sin(y / 200), model_position.y) * 0.00002;
-    vec2 bending = vec2(sin(y / 177), cos(y / 13)) * 0.001 * world_y * world_y;
+    float clamped_world_y = max(0, world_y - 10);
+    vec2 bending = vec2(sin(y / 177), cos(y / 13)) * 0.001 * clamped_world_y * clamped_world_y;
 
-    model_normal += vec3(0, (radius[0] - radius[1]) / 40 + dot(normalize(model_position.xz), normalize(bending.xy)) * 0.1, 0);
+    model_normal += vec3(0, (radius[0] - radius[1]) / 40 + dot(normalize(model_position.xz), bending.xy) * 0.1, 0);
     model_normal = normalize(model_normal);
 
     mat3 basis = mat3(
