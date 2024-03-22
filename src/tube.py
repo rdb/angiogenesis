@@ -30,7 +30,8 @@ class NavType(Enum):
         return self in (NavType.SWERVIBLE, NavType.PASSABLE, NavType.EMPTY)
 
 
-LEVEL = 'flesh'
+LEVEL = 'steel'
+LEVELS = 'steel', 'rift', 'flesh'
 NUM_RINGS = 30
 X_SPACING = 2
 Y_SPACING = 40
@@ -41,6 +42,102 @@ MAX_SWERVE = 6
 
 SECTION_LENGTH = 3
 TRENCH_DEPTH = 2.5
+
+
+class TileSet:
+    def __init__(self):
+        self.entrance_trenches = []
+        self.exit_trenches = []
+        self.middle_trenches = []
+        self.impassable_trenches = []
+        self.tile1_by_type = {
+            NavType.EMPTY: [],
+            NavType.PASSABLE: [],
+            NavType.IMPASSABLE: [],
+            NavType.SWERVIBLE: [],
+            NavType.TUNNEL: [],
+        }
+        self.tile3_by_type = {
+            NavType.EMPTY: [],
+            NavType.PASSABLE: [],
+            NavType.IMPASSABLE: [],
+            NavType.SWERVIBLE: [],
+            NavType.TUNNEL: [],
+        }
+        self.tile3s = []
+        self.segments = {}
+
+    def add(self, n):
+        name = n.name.split('_', 1)[1]
+
+        cnp = n.find("**/+CollisionNode")
+        if cnp:
+            cnode = cnp.node()
+            num_solids = cnode.get_num_solids()
+            i = 0
+            while i < num_solids:
+                solid = cnode.modify_solid(i)
+                if isinstance(solid, CollisionPolygon):
+                    if should_cull_collision_poly(name, solid):
+                        cnode.remove_solid(i)
+                        num_solids -= 1
+                        continue
+
+                cnode.modify_solid(i).set_tangible(True)
+                i += 1
+
+            cnp.detach_node()
+            cnp.hide()
+            for c in cnp.children:
+                c.reparent_to(n)
+
+            if num_solids == 0:
+                cnp = None
+        else:
+            cnp = None
+
+        # Code isn't handling multiple collision nodes yet
+        assert not n.find("**/+CollisionNode")
+        n.find_all_matches("**/+CollisionNode").detach()
+
+        n.clear_transform()
+        n.flatten_strong()
+
+        seg = (n, cnp)
+        self.segments[name] = seg
+
+        if name.startswith('trench3_entrance'):
+            self.entrance_trenches.append(seg)
+        elif name.startswith('trench3_end'):
+            self.exit_trenches.append(seg)
+        elif name.startswith('trench3_middle'):
+            self.middle_trenches.append(seg)
+        elif name.startswith('trench3_impassable'):
+            self.impassable_trenches.append(seg)
+        elif name.startswith('tile1_empty'):
+            self.tile1_by_type[NavType.EMPTY].append(seg)
+        elif name.startswith('tile1_impassable'):
+            self.tile1_by_type[NavType.IMPASSABLE].append(seg)
+        elif name.startswith('tile1_impasssable'): # sic
+            self.tile1_by_type[NavType.IMPASSABLE].append(seg)
+        elif name.startswith('tile1_swervible'): # sic
+            self.tile1_by_type[NavType.SWERVIBLE].append(seg)
+        elif name.startswith('tile1_passable_tunnel'):
+            self.tile1_by_type[NavType.TUNNEL].append(seg)
+        elif name.startswith('tile1_passable'):
+            self.tile1_by_type[NavType.PASSABLE].append(seg)
+        elif name.startswith('tile3_empty'):
+            self.tile3_by_type[NavType.EMPTY].append(seg)
+        elif name.startswith('tile3_impassable'):
+            self.tile3_by_type[NavType.IMPASSABLE].append(seg)
+        elif name.startswith('tile3_swervible'): # sic
+            self.tile3_by_type[NavType.SWERVIBLE].append(seg)
+        elif name.startswith('tile3_swirvible'): # double-sic
+            self.tile3_by_type[NavType.SWERVIBLE].append(seg)
+        elif name.startswith('tile3_passable_tunnel'):
+            self.tile3_by_type[NavType.TUNNEL].append(seg)
+        elif name.startswith('tile3_passable'):
+            self.tile3_by_type[NavType.PASSABLE].append(seg)
 
 
 def should_cull_collision_poly(name, solid):
@@ -111,117 +208,27 @@ class Tube:
         self.first_ring = None
         self.last_ring = None
 
+        self.ts_steel = TileSet()
+        self.ts_rift = TileSet()
+        self.ts_flesh = TileSet()
+        self.ts_level = getattr(self, 'ts_' + LEVEL)
+
         model = loader.load_model('assets/bam/segments/segments.bam')
 
-        self.entrance_trenches = []
-        self.exit_trenches = []
-        self.middle_trenches = []
-        self.impassable_trenches = []
-        self.tile1_by_type = {
-            NavType.EMPTY: [],
-            NavType.PASSABLE: [],
-            NavType.IMPASSABLE: [],
-            NavType.SWERVIBLE: [],
-            NavType.TUNNEL: [],
-        }
-        self.tile3_by_type = {
-            NavType.EMPTY: [],
-            NavType.PASSABLE: [],
-            NavType.IMPASSABLE: [],
-            NavType.SWERVIBLE: [],
-            NavType.TUNNEL: [],
-        }
-        self.tile3s = []
-        self.segments = {}
-
-        num_culled = 0
-        num_nonculled = 0
-
+        print("Processing segments...")
         for n in model.children:
             name = n.name
-            if name.startswith(LEVEL + "_"):
-                name = name[len(LEVEL)+1:]
-            elif LEVEL != 'steel' and name.startswith('steel_tile1_transition'):
-                name = name[6:]
-            else:
-                continue
-
-            cnp = n.find("**/+CollisionNode")
-            if cnp:
-                cnode = cnp.node()
-                num_solids = cnode.get_num_solids()
-                i = 0
-                while i < num_solids:
-                    solid = cnode.modify_solid(i)
-                    if isinstance(solid, CollisionPolygon):
-                        if should_cull_collision_poly(name, solid):
-                            cnode.remove_solid(i)
-                            num_solids -= 1
-                            num_culled += 1
-                            continue
-
-                    cnode.modify_solid(i).set_tangible(True)
-                    i += 1
-                    num_nonculled += 1
-
-                cnp.detach_node()
-                cnp.hide()
-                for c in cnp.children:
-                    c.reparent_to(n)
-
-                if num_solids == 0:
-                    cnp = None
-            else:
-                cnp = None
-
-            # Code isn't handling multiple collision nodes yet
-            assert not n.find("**/+CollisionNode")
-            n.find_all_matches("**/+CollisionNode").detach()
-
-            n.clear_transform()
-            n.flatten_strong()
-
-            seg = (n, cnp)
-            self.segments[name] = seg
-
-            if name.startswith('trench3_entrance'):
-                self.entrance_trenches.append(seg)
-            elif name.startswith('trench3_end'):
-                self.exit_trenches.append(seg)
-            elif name.startswith('trench3_middle'):
-                self.middle_trenches.append(seg)
-            elif name.startswith('trench3_impassable'):
-                self.impassable_trenches.append(seg)
-            elif name.startswith('tile1_empty'):
-                self.tile1_by_type[NavType.EMPTY].append(seg)
-            elif name.startswith('tile1_impassable'):
-                self.tile1_by_type[NavType.IMPASSABLE].append(seg)
-            elif name.startswith('tile1_impasssable'): # sic
-                self.tile1_by_type[NavType.IMPASSABLE].append(seg)
-            elif name.startswith('tile1_swervible'): # sic
-                self.tile1_by_type[NavType.SWERVIBLE].append(seg)
-            elif name.startswith('tile1_passable_tunnel'):
-                self.tile1_by_type[NavType.TUNNEL].append(seg)
-            elif name.startswith('tile1_passable'):
-                self.tile1_by_type[NavType.PASSABLE].append(seg)
-            elif name.startswith('tile3_empty'):
-                self.tile3_by_type[NavType.EMPTY].append(seg)
-            elif name.startswith('tile3_impassable'):
-                self.tile3_by_type[NavType.IMPASSABLE].append(seg)
-            elif name.startswith('tile3_swervible'): # sic
-                self.tile3_by_type[NavType.SWERVIBLE].append(seg)
-            elif name.startswith('tile3_swirvible'): # double-sic
-                self.tile3_by_type[NavType.SWERVIBLE].append(seg)
-            elif name.startswith('tile3_passable_tunnel'):
-                self.tile3_by_type[NavType.TUNNEL].append(seg)
-            elif name.startswith('tile3_passable'):
-                self.tile3_by_type[NavType.PASSABLE].append(seg)
-
-        print(f"Removed {num_culled} of {num_nonculled + num_culled} collision polygons.")
+            if name.startswith("steel_"):
+                self.ts_steel.add(n)
+            elif name.startswith("rift_"):
+                self.ts_rift.add(n)
+            elif name.startswith("flesh_"):
+                self.ts_flesh.add(n)
+        print("Done.")
 
         self.seg_count = 20
         self.next_emptyish = False
-        self.generator = iter(self.gen_tube())
+        self.generator = iter(self.gen_tube(LEVEL))
         self.last_ring = next(self.generator)
         self.first_ring = self.last_ring
         self.current_ring = self.first_ring
@@ -362,19 +369,47 @@ class Tube:
             if not ring:
                 ring = next(self.generator)
 
-    def gen_tube(self):
+    def gen_tube(self, level):
+        if level == 'steel':
+            yield from self.gen_steel_level()
+
+        if level != 'flesh':
+            yield from self.gen_rift_level()
+
+        yield from self.gen_flesh_level()
+
+    def gen_steel_level(self):
+        self.seg_count = 2
+        self.ts_level = self.ts_steel
+        yield self.gen_empty_ring(delta=18)
+        yield from self.gen_tile_section(1)
+        yield from self.gen_tile_section(3)
+        yield from self.gen_transition(6)
+        yield from self.gen_tile_section(1)
+        yield from self.gen_trench()
+        yield from self.gen_tile_section(3)
+        yield from self.gen_transition(6)
+
+    def gen_rift_level(self):
+        self.ts_level = self.ts_rift
+        yield self.gen_empty_ring()
+
+    def gen_flesh_level(self):
         # Always start with empty
         self.seg_count = 6
-        yield self.gen_empty_ring()
+        yield self.gen_empty_ring(ts=self.ts_rift)
+
+        ts = self.ts_flesh
+        self.ts_level = ts
 
         # mouth... ewww
         self.seg_count = 200
         #yield self.gen_empty_ring()
-        yield self.gen_ring([self.segments[seg] for seg in self.segments if 'obstacle' in seg and 'tile1' in seg] * 100)
-        yield self.gen_ring([self.segments[seg] for seg in self.segments if 'obstacle' in seg and 'tile1' in seg] * 40)
-        yield self.gen_ring([self.segments[seg] for seg in self.segments if 'obstacle' in seg and 'tile1' in seg] * 15)
-        yield self.gen_ring([self.segments[seg] for seg in self.segments if 'obstacle' in seg and 'tile1' in seg] * 6)
-        yield self.gen_ring([self.segments[seg] for seg in self.segments if 'obstacle' in seg and 'tile1' in seg] * 3)
+        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 100)
+        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 40)
+        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 15)
+        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 6)
+        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 3)
 
         ring = self.last_ring
         ring.exits.append((self.random.randrange(0, 3), 0, 0))
@@ -391,6 +426,7 @@ class Tube:
         yield self.gen_passable_ring()
         yield from self.gen_tile_section()
         yield from self.gen_tile_section()
+        yield self.gen_passable_ring(delta=-3)
         yield from self.gen_transition(6)
         yield from self.gen_tile_section()
         yield from self.gen_tile_section()
@@ -409,9 +445,11 @@ class Tube:
             yield from self.gen_trench()
             yield self.gen_empty_ring()
 
-    def gen_transition(self, to_segs):
+    def gen_transition(self, to_segs, ts=None):
+        ts = ts or self.ts_level
+
         types = self.calc_types(self.seg_count, allow_swervible=False, allow_passable=False, allow_tunnel=True)
-        ring = self.gen_ring([self.segments['tile1_transition_impassable'] if nt == NavType.IMPASSABLE else self.segments['tile1_transition'] for nt in types])
+        ring = self.gen_ring([ts.segments['tile1_transition_impassable'] if nt == NavType.IMPASSABLE else ts.segments['tile1_transition'] for nt in types])
         ring.end_depth = 3.0
         yield ring
 
@@ -429,7 +467,7 @@ class Tube:
         self.seg_count = to_segs
 
         # Every tile after tunnel should be passable but not a tunnel
-        options = [self.segments[seg] for seg in self.segments if 'passable_gate' in seg or 'passable_obstacle' in seg]
+        options = [ts.segments[seg] for seg in ts.segments if 'passable_gate' in seg or 'passable_obstacle' in seg]
         segs = self.random.choices(options, k=to_segs)
         ring = self.gen_ring(segs, branch_root=branch_root)
 
@@ -438,16 +476,18 @@ class Tube:
 
         yield ring
 
-    def gen_tile_section(self, width=None):
+    def gen_tile_section(self, width=None, ts=None):
         if width is None:
             width = self.random.choice((1, 3))
 
-        if len(self.tile1_by_type[NavType.PASSABLE]) == 0:
+        ts = self.ts_level
+
+        if len(ts.tile1_by_type[NavType.PASSABLE]) == 0:
             width = 3
 
         count = int(ceil(self.seg_count / width))
 
-        tiles = self.tile3_by_type if width == 3 else self.tile1_by_type
+        tiles = ts.tile3_by_type if width == 3 else ts.tile1_by_type
         allow_tunnel = len(tiles[NavType.TUNNEL]) > 0
 
         for j in range(SECTION_LENGTH):
@@ -464,32 +504,13 @@ class Tube:
                     ring.exits.append((i, types[i - 1] == NavType.PASSABLE, types[i + 1] == NavType.PASSABLE))
             yield ring
 
-    def gen_wall1(self):
-        seg1 = self.segments['tile1_impassable']
-        seg2 = self.segments['tile1_gate']
-        segs = [seg1, seg1, seg2, seg1, seg1, seg1]
-        self.random.shuffle(segs)
-        segs = segs * (self.seg_count // 6)
-        while len(segs) < self.seg_count:
-            segs.append(seg1)
-        yield self.gen_ring(segs)
+    def gen_passable_ring(self, delta=0, ts=None):
+        ts = ts or self.ts_level
 
-    def gen_wall2(self):
-        seg1 = self.segments['tile1_impassable.001']
-        seg2 = self.segments['tile1_empty']
-        segs = [seg1, seg1, seg2, seg1, seg1, seg1]
-        self.random.shuffle(segs)
-        segs = segs * (self.seg_count // 6)
-        while len(segs) < self.seg_count:
-            segs.append(seg1)
-        yield self.gen_ring(segs)
-        self.next_emptyish = True
-
-    def gen_passable_ring(self, delta=0):
-        tiles = self.tile1_by_type[NavType.PASSABLE]
+        tiles = ts.tile1_by_type[NavType.PASSABLE]
         width = 1
         if not tiles:
-            tiles = self.tile3_by_type[NavType.PASSABLE]
+            tiles = ts.tile3_by_type[NavType.PASSABLE]
             width = 3
 
         segs = self.random.choices(tiles, k=int(ceil((self.seg_count + delta) / width)))
@@ -500,11 +521,13 @@ class Tube:
 
         return ring
 
-    def gen_empty_ring(self, delta=0):
-        if self.tile1_by_type[NavType.EMPTY]:
-            segs = self.random.choices(self.tile1_by_type[NavType.EMPTY], k=max(1, self.seg_count + delta))
+    def gen_empty_ring(self, delta=0, ts=None):
+        ts = ts or self.ts_level
+
+        if ts.tile1_by_type[NavType.EMPTY]:
+            segs = self.random.choices(ts.tile1_by_type[NavType.EMPTY], k=max(1, self.seg_count + delta))
         else:
-            segs = self.random.choices(self.tile3_by_type[NavType.EMPTY], k=int(ceil((self.seg_count + delta) / 3)))
+            segs = self.random.choices(ts.tile3_by_type[NavType.EMPTY], k=int(ceil((self.seg_count + delta) / 3)))
 
         ring = self.gen_ring(segs)
 
@@ -513,8 +536,10 @@ class Tube:
 
         return ring
 
-    def gen_trench(self):
-        if not self.entrance_trenches or not self.middle_trenches:
+    def gen_trench(self, ts=None):
+        ts = ts or self.ts_level
+
+        if not ts.entrance_trenches or not ts.middle_trenches:
             return
 
         types = self.calc_types(self.seg_count // 3, allow_swervible=False, allow_passable=False, allow_tunnel=True)
@@ -523,22 +548,22 @@ class Tube:
             if types[i] == NavType.TUNNEL:
                 exits.append((i, 0, 0))
 
-        segs = [self.random.choice(self.entrance_trenches if nt == NavType.TUNNEL else self.impassable_trenches) for nt in types]
+        segs = [self.random.choice(ts.entrance_trenches if nt == NavType.TUNNEL else ts.impassable_trenches) for nt in types]
         ring = self.gen_ring(segs, width=3)
         ring.exits = exits
         ring.end_depth = TRENCH_DEPTH
         yield ring
 
         for i in range(SECTION_LENGTH):
-            segs = [self.random.choice(self.middle_trenches if nt == NavType.TUNNEL else self.impassable_trenches) for nt in types]
+            segs = [self.random.choice(ts.middle_trenches if nt == NavType.TUNNEL else ts.impassable_trenches) for nt in types]
             ring = self.gen_ring(segs, width=3)
             ring.exits = exits
             ring.start_depth = TRENCH_DEPTH
             ring.end_depth = TRENCH_DEPTH
             yield ring
 
-        if self.exit_trenches:
-            segs = [self.random.choice(self.exit_trenches if nt == NavType.TUNNEL else self.impassable_trenches) for nt in types]
+        if ts.exit_trenches:
+            segs = [self.random.choice(ts.exit_trenches if nt == NavType.TUNNEL else ts.impassable_trenches) for nt in types]
             ring = self.gen_ring(segs, width=3)
             ring.exits = exits
             ring.start_depth = TRENCH_DEPTH
