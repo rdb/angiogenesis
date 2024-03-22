@@ -9,18 +9,18 @@ from random import random
 
 CAM_TRAIL = 1.5 # units
 CAM_Z_OFFSET = 0.2
-ROT_ACC = -500
+ROT_ACC = -700
 ROT_SPEED_LIMIT = 500
 ROT_BRAKE = 0.01
 
 SHIP_ROLL_ANGLE = 45
 SHIP_ROLL_SPEED = 0.0000001
 SHIP_DONK_FACTOR = 100
-SHIP_Z_ACC = 2.0
 
 SHIP_HEIGHT = 0.2
 
-USE_GRAVITY = False
+USE_GRAVITY = True
+SHIP_Z_ACC = 0.7
 
 
 def smoothstep(x):

@@ -49,19 +49,14 @@ uniform sampler2D brdf_lut;
 uniform samplerCube filtered_env_map;
 uniform float max_reflection_lod;
 
-const vec4 fog_color = vec4(0, 0, 0, 1);
-
 const vec3 F0 = vec3(0.04);
 const float PI = 3.141592653589793;
 const float SPOTSMOOTH = 0.001;
 const float LIGHT_CUTOFF = 0.001;
 
-varying vec3 v_view_position;
 varying vec3 v_world_position;
 varying vec4 v_color;
-varying float v_occlude;
 varying vec2 v_texcoord;
-varying mat3 v_view_tbn;
 varying mat3 v_world_tbn;
 
 #ifdef USE_330
@@ -114,16 +109,7 @@ float diffuse_function() {
 }
 
 vec3 get_normalmap_data() {
-#ifdef CALC_NORMAL_Z
-    vec2 normalXY = 2.0 * texture2D(p3d_TextureNormal, v_texcoord).rg - 1.0;
-    float normalZ = sqrt(clamp(1.0 - dot(normalXY, normalXY), 0.0, 1.0));
-    return vec3(
-        normalXY,
-        normalZ
-    );
-#else
     return 2.0 * texture2D(p3d_TextureNormal, v_texcoord).rgb - 1.0;
-#endif
 }
 
 vec3 irradiance_from_sh(vec3 normal) {
@@ -144,17 +130,16 @@ void main() {
     float metallic = clamp(p3d_Material.metallic * metal_rough.b, 0.0, 1.0);
     float perceptual_roughness = clamp(p3d_Material.roughness * metal_rough.g,  0.0, 1.0);
     float alpha_roughness = perceptual_roughness * perceptual_roughness;
-    vec4 base_color = p3d_Material.baseColor * v_color * p3d_ColorScale * (texture2D(p3d_TextureFF, v_texcoord) + p3d_TexAlphaOnly);
+    vec4 base_color = p3d_Material.baseColor * vec4(v_color.rgb, 1) * p3d_ColorScale * (texture2D(p3d_TextureFF, v_texcoord) + p3d_TexAlphaOnly);
     vec3 diffuse_color = (base_color.rgb * (vec3(1.0) - F0)) * (1.0 - metallic);
     vec3 spec_color = mix(F0, base_color.rgb, metallic);
     vec3 normalmap = get_normalmap_data();
-    vec3 n = normalize(v_view_tbn * normalmap);
-    vec3 world_normal = normalize(v_world_tbn * normalmap);
-    vec3 v = normalize(-v_view_position);
+    vec3 n = normalize(v_world_tbn * normalmap);
+    vec3 v = normalize(camera_world_position - v_world_position);
 
     //float ambient_occlusion = metal_rough.r;
     float ambient_occlusion = 1.0;
-    ambient_occlusion *= v_occlude;
+    ambient_occlusion *= v_color.a;
 
     vec3 emission = p3d_Material.emission.rgb * texture2D(p3d_TextureEmission, v_texcoord).rgb;
 
@@ -165,10 +150,9 @@ void main() {
     // Indirect diffuse + specular (IBL)
     vec3 ibl_f = fresnelSchlickRoughness(n_dot_v, spec_color, perceptual_roughness);
     vec3 ibl_kd = (1.0 - ibl_f) * (1.0 - metallic);
-    vec3 ibl_diff = base_color.rgb * max(irradiance_from_sh(world_normal), 0.0) * diffuse_function();
+    vec3 ibl_diff = base_color.rgb * max(irradiance_from_sh(n), 0.0) * diffuse_function();
 
-    vec3 world_view = normalize(camera_world_position - v_world_position);
-    vec3 ibl_r = reflect(-world_view, world_normal);
+    vec3 ibl_r = reflect(-v, n);
     vec2 env_brdf = texture2D(brdf_lut, vec2(n_dot_v, perceptual_roughness)).rg;
     vec3 ibl_spec_color = textureCubeLod(filtered_env_map, ibl_r.zxy, perceptual_roughness * max_reflection_lod).rgb * 0.5;
     vec3 ibl_spec = ibl_spec_color * (ibl_f * env_brdf.x + env_brdf.y);
@@ -176,11 +160,6 @@ void main() {
 
     // Emission
     color.rgb += emission * 100;
-
-    // Exponential fog
-    float fog_distance = length(v_view_position);
-    float fog_factor = clamp(1.0 / exp(fog_distance * 0.005), 0.0, 1.0);
-    color = mix(fog_color, color, fog_factor);
 
 #ifdef USE_330
     o_color = color;

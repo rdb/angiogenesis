@@ -21,7 +21,7 @@ class NavType:
     TUNNEL = 4 # non-swervable but passable
 
 
-LEVEL = 'steel'
+LEVEL = 'flesh'
 NUM_RINGS = 30
 X_SPACING = 2
 Y_SPACING = 40
@@ -130,7 +130,7 @@ class Tube:
             name = n.name
             if name.startswith(LEVEL + "_"):
                 name = name[len(LEVEL)+1:]
-            elif LEVEL == 'rift' and name.startswith('steel_tile1_transition'):
+            elif LEVEL != 'steel' and name.startswith('steel_tile1_transition'):
                 name = name[6:]
             else:
                 continue
@@ -182,6 +182,8 @@ class Tube:
             elif name.startswith('trench3_impassable'):
                 self.impassable_trenches.append(seg)
             elif name.startswith('tile1_impassable'):
+                self.tile1_by_type[NavType.IMPASSABLE].append(seg)
+            elif name.startswith('tile1_impasssable'): # sic
                 self.tile1_by_type[NavType.IMPASSABLE].append(seg)
             elif name.startswith('tile1_swervible'): # sic
                 self.tile1_by_type[NavType.SWERVIBLE].append(seg)
@@ -343,27 +345,24 @@ class Tube:
 
     def gen_tube(self):
         # Always start with empty
-        self.seg_count = 2
+        self.seg_count = 6
         yield self.gen_empty_ring()
-        yield self.gen_empty_ring(delta=18)
-        yield from self.gen_tile_section(1)
-        yield from self.gen_tile_section(3)
-        yield from self.gen_transition(6)
-        yield from self.gen_tile_section(1)
-        yield from self.gen_trench()
-        yield from self.gen_tile_section(3)
-        yield from self.gen_transition(6)
+
+        # mouth... ewww
+        self.seg_count = 200
+        #yield self.gen_empty_ring()
+        yield self.gen_ring([self.segments[seg] for seg in self.segments if 'obstacle' in seg and 'tile1' in seg] * 100)
+        yield self.gen_ring([self.segments[seg] for seg in self.segments if 'obstacle' in seg and 'tile1' in seg] * 40)
+        yield self.gen_ring([self.segments[seg] for seg in self.segments if 'obstacle' in seg and 'tile1' in seg] * 15)
+        yield self.gen_ring([self.segments[seg] for seg in self.segments if 'obstacle' in seg and 'tile1' in seg] * 6)
+        yield self.gen_ring([self.segments[seg] for seg in self.segments if 'obstacle' in seg and 'tile1' in seg] * 3)
+
+        ring = self.last_ring
+        ring.exits.append((2, 0, 0))
+        #self.exits
+
         yield from self.gen_tile_section()
         yield from self.gen_tile_section()
-        yield self.gen_empty_ring(delta=10)
-        yield from self.gen_tile_section(3)
-        yield from self.gen_trench()
-        yield self.gen_passable_ring(delta=30)
-        yield self.gen_empty_ring(delta=60)
-        yield self.gen_passable_ring(delta=30)
-        yield from self.gen_tile_section(3)
-        yield from self.gen_tile_section(1)
-        yield from self.gen_trench()
 
         while True:
             yield self.gen_empty_ring()
@@ -464,7 +463,11 @@ class Tube:
         return ring
 
     def gen_empty_ring(self, delta=0):
-        segs = self.random.choices(self.empty_tiles, k=self.seg_count + delta)
+        if 'tile1_empty' in self.segments:
+            segs = [self.segments['tile1_empty']] * (self.seg_count + delta)
+        else:
+            segs = [self.segments['tile3_empty']] * int(ceil((self.seg_count + delta) / 3))
+
         ring = self.gen_ring(segs)
 
         for i in range(len(segs)):
@@ -473,6 +476,9 @@ class Tube:
         return ring
 
     def gen_trench(self):
+        if not self.entrance_trenches or not self.middle_trenches:
+            return
+
         types = self.calc_types(self.seg_count // 3, allow_swervible=False, allow_passable=False, allow_tunnel=True)
         exits = []
         for i in range(len(types)):
@@ -493,11 +499,12 @@ class Tube:
             ring.end_depth = TRENCH_DEPTH
             yield ring
 
-        segs = [self.random.choice(self.exit_trenches if nt == NavType.TUNNEL else self.impassable_trenches) for nt in types]
-        ring = self.gen_ring(segs, width=3)
-        ring.exits = exits
-        ring.start_depth = TRENCH_DEPTH
-        yield ring
+        if self.exit_trenches:
+            segs = [self.random.choice(self.exit_trenches if nt == NavType.TUNNEL else self.impassable_trenches) for nt in types]
+            ring = self.gen_ring(segs, width=3)
+            ring.exits = exits
+            ring.start_depth = TRENCH_DEPTH
+            yield ring
 
     def gen_ring(self, set, width=1, parent=None, branch_root=None):
         count = len(set) * width

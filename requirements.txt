@@ -1,2 +1,2 @@
 panda3d
-panda3d-simplepbr
+panda3d-simplepbr==0.12.0
