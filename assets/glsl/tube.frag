@@ -159,7 +159,7 @@ void main() {
     color.rgb += (ibl_kd * ibl_diff  + ibl_spec);
 
     // Emission
-    color.rgb += emission * 500;
+    color.rgb += emission * 300;
 
     color.rgb *= ambient_occlusion;
 

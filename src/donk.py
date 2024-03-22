@@ -1,8 +1,10 @@
 from panda3d.core import *
 from math import floor, ceil
+from random import random, choice
 
 
 DONK_DEBUG = False
+SCRAPE_FADEOUT_SPEED = 2.0
 
 
 class Collisions:
@@ -23,6 +25,28 @@ class Collisions:
 
         self.trav = CollisionTraverser()
         self.trav.add_collider(self.cship, self.pusher)
+
+        self.scraping = 0.0
+
+        self.steel_bumps = [
+            base.loader.load_sfx('assets/sfx/bump1.wav'),
+            base.loader.load_sfx('assets/sfx/bump2.wav'),
+        ]
+
+        self.steel_scrape = base.loader.load_sfx('assets/sfx/scratch.wav')
+        self.steel_scrape.set_loop(True)
+
+        self.steel_scrape = base.loader.load_sfx('assets/sfx/scratch.wav')
+        self.steel_scrape.set_loop(True)
+
+        self.flesh_bumps = [
+            base.loader.load_sfx('assets/sfx/f_bump1.wav'),
+            base.loader.load_sfx('assets/sfx/f_bump2.wav'),
+            base.loader.load_sfx('assets/sfx/f_bump3.wav'),
+        ]
+
+        self.flesh_scrape = base.loader.load_sfx('assets/sfx/f_scratch.wav')
+        self.flesh_scrape.set_loop(True)
 
         if DONK_DEBUG:
             self.cship.show()
@@ -101,5 +125,28 @@ class Collisions:
             deflect = moved.x / current_ring.r_to_x
             pain = -moved.xy.normalized().y
             self.controls.donk(deflect, pain)
+
+            if not self.scraping:
+                self.steel_scrape.set_volume(1.0)
+                if self.steel_scrape.status() != AudioSound.PLAYING:
+                    self.steel_scrape.set_time(0.2)
+                    self.steel_scrape.play()
+
+                sound = choice(self.steel_bumps)
+                sound.set_play_rate(0.5 + random())
+                sound.play()
+
+            self.scraping += dt
+
+        elif self.scraping:
+            if self.scraping < 0.1:
+                self.steel_scrape.stop()
+            self.scraping = 0
+
+        if not self.scraping:
+            volume = self.steel_scrape.get_volume()
+            self.steel_scrape.set_volume(max(volume - dt * SCRAPE_FADEOUT_SPEED, 0))
+            if volume == 0.0:
+                self.steel_scrape.stop()
 
         self.cship.set_pos(0, 0, ship_z)

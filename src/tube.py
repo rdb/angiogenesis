@@ -11,6 +11,7 @@ from random import Random
 from math import pi, tau, ceil, cos, sin
 from enum import Enum
 
+from .gurgles import MultiTrack
 from .util import RingList
 
 
@@ -176,6 +177,7 @@ class Ring:
         self.start_depth = 0.0
         self.end_depth = 0.0
         self.exits = [] # i, sw_left, sw_right
+        self.play_tracks = ()
 
     def radius_at(self, y):
         t = (y - self.node_path.get_y()) / Y_SPACING + 0.5
@@ -210,6 +212,19 @@ class Tube:
         self.counter = 0
         self.first_ring = None
         self.last_ring = None
+
+        self.music = MultiTrack()
+        self.music.load_track('snare', 'assets/music/a/A-snare.mp3')
+        self.music.load_track('peace', 'assets/music/a/A-peace.mp3')
+        self.music.load_track('medium', 'assets/music/a/A-medium.mp3')
+        self.music.load_track('space_big', 'assets/music/a/A-space_big.mp3')
+        self.music.load_track('space', 'assets/music/a/A-space.mp3')
+        self.music.load_track('tight', 'assets/music/a/A-tight.mp3')
+        self.music.load_track('ambient', 'assets/music/b/B-ambient.mp3')
+        self.music.load_track('drive', 'assets/music/b/B-drive.mp3')
+        self.music.play()
+
+        self.next_tracks = set()
 
         self.fog_factor = 0.04
         self.twist_factor = 0.0
@@ -353,8 +368,11 @@ class Tube:
         ring = self.first_ring
         while ring is not None:
             if ring.node_path.get_y() > -Y_SPACING / 2.0:
+                self.music.set_playing_tracks(ring.play_tracks)
                 self.current_ring = ring
                 if self.branch_root != ring.branch_root:
+                    ring.inst_parent.remove_node()
+                    ring.branch_root.reparent_to(self.root)
                     self.branch_root.remove_node()
                     self.branch_root = ring.branch_root
                     self.branch_root.set_shader_inputs(start_center=(0, 0), end_center=(0, 0))
@@ -377,6 +395,9 @@ class Tube:
             if not ring:
                 ring = next(self.generator)
 
+                # generating one per frame is enough
+                break
+
     def gen_tube(self, level):
         if level == 'steel':
             yield from self.gen_steel_level()
@@ -392,19 +413,35 @@ class Tube:
         self.bend_time_factor = 0.0
         self.bend_y_factor = 0.0002
 
-        self.seg_count = 2
+        self.seg_count = 20
         self.ts_level = self.ts_steel
-        yield self.gen_empty_ring(delta=18)
+        self.next_tracks = set(['peace'])
+        yield self.gen_empty_ring()
+
+        yield from self.gen_trench()
+        self.next_tracks.add('peace')
 
         yield self.gen_empty_ring(delta=10)
         yield from self.gen_tile_section(3)
         yield from self.gen_trench()
+
+        self.next_tracks.add('space_big')
         yield self.gen_passable_ring(delta=30)
         yield self.gen_empty_ring(delta=60)
         yield self.gen_passable_ring(delta=30)
         yield from self.gen_tile_section(3)
         yield from self.gen_tile_section(1)
         yield from self.gen_trench()
+        yield from self.gen_tile_section()
+        self.next_tracks.remove('space_big')
+        yield self.gen_passable_ring()
+        self.next_tracks.remove('peace')
+
+        self.next_tracks.add('tight')
+        yield from self.gen_transition(6)
+        yield from self.gen_tile_section()
+        yield from self.gen_tile_section()
+        yield from self.gen_tile_section()
 
     def gen_rift_level(self):
         self.ts_level = self.ts_rift
@@ -414,6 +451,8 @@ class Tube:
         # Always start with empty
         self.seg_count = 6
         yield self.gen_empty_ring(ts=self.ts_rift)
+
+        self.next_tracks.add('drive')
 
         self.fog_factor = 0.04
         self.twist_factor = 5.0
@@ -431,6 +470,8 @@ class Tube:
         yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 15)
         yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 6)
         yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 3)
+
+        self.next_tracks.add('ambient')
 
         ring = self.last_ring
         ring.exits.append((self.random.randrange(0, 3), 0, 0))
@@ -474,6 +515,7 @@ class Tube:
         ring.end_depth = 3.0
         yield ring
 
+        inst_parent = self.root.attach_new_node('branch')
         branch_root = NodePath('branch')
 
         rad = (to_segs - len(types)) / AR_FACTOR - 3
@@ -481,7 +523,7 @@ class Tube:
         for seg in range(self.seg_count):
             if types[seg].is_passable:
                 center = Vec2(-sin(seg * fac), cos(seg * fac)) * rad
-                inst = self.root.attach_new_node('inst')
+                inst = inst_parent.attach_new_node('inst')
                 branch_root.instance_to(inst)
                 inst.set_shader_inputs(start_center=center, end_center=center)
 
@@ -490,7 +532,7 @@ class Tube:
         # Every tile after tunnel should be passable but not a tunnel
         options = [ts.segments[seg] for seg in ts.segments if 'passable_gate' in seg or 'passable_obstacle' in seg]
         segs = self.random.choices(options, k=to_segs)
-        ring = self.gen_ring(segs, branch_root=branch_root)
+        ring = self.gen_ring(segs, inst_parent=inst_parent, branch_root=branch_root)
 
         for i in range(to_segs):
             ring.exits.append((i, 1, 1))
@@ -563,6 +605,10 @@ class Tube:
         if not ts.entrance_trenches or not ts.middle_trenches:
             return
 
+        self.next_tracks.discard('peace')
+        self.next_tracks.discard('tight')
+        self.next_tracks.add('medium')
+
         types = self.calc_types(self.seg_count // 3, allow_swervible=False, allow_passable=False, allow_tunnel=True)
         exits = []
         for i in range(len(types)):
@@ -583,6 +629,9 @@ class Tube:
             ring.end_depth = TRENCH_DEPTH
             yield ring
 
+        self.next_tracks.remove('medium')
+        self.next_tracks.add('peace')
+
         if ts.exit_trenches:
             segs = [self.random.choice(ts.exit_trenches if nt == NavType.TUNNEL else ts.impassable_trenches) for nt in types]
             ring = self.gen_ring(segs, width=3)
@@ -590,7 +639,7 @@ class Tube:
             ring.start_depth = TRENCH_DEPTH
             yield ring
 
-    def gen_ring(self, set, width=1, parent=None, branch_root=None):
+    def gen_ring(self, set, width=1, parent=None, inst_parent=None, branch_root=None):
         count = len(set) * width
         from_radius = self.seg_count / AR_FACTOR
         to_radius = count / AR_FACTOR
@@ -606,7 +655,9 @@ class Tube:
         ring.start_radius = from_radius
         ring.end_radius = to_radius
         ring.x_spacing = X_SPACING * width
+        ring.inst_parent = inst_parent
         ring.branch_root = branch_root
+        ring.play_tracks = tuple(self.next_tracks)
 
         np = NodePath("ring")
         np.set_shader_inputs(

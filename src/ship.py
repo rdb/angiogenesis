@@ -2,9 +2,7 @@ from panda3d.core import NodePath
 from panda3d.core import Point3, Vec4
 
 from direct.showbase.DirectObject import DirectObject
-from direct.interval.IntervalGlobal import Sequence, Func
 from direct.motiontrail.MotionTrail import MotionTrail
-from direct.gui.OnscreenText import OnscreenText
 from random import random
 
 
@@ -23,6 +21,9 @@ SHIP_HEIGHT = 0.2
 USE_GRAVITY = True
 SHIP_Z_ACC = 0.7
 SHIP_BOUNCE = 0.1
+
+# with higher value, will play big bounce sound only at higher vertical speeds
+BOUNCE_LARGE_THRESHOLD = 1.0
 
 
 def smoothstep(x):
@@ -80,6 +81,9 @@ class ShipControls(DirectObject):
         self.tube = tube
         base.taskMgr.add(self.cam_move, sort=4)
 
+        self.bounce_large = loader.load_sfx('assets/sfx/bump1.wav')
+        self.bounce_small = loader.load_sfx('assets/sfx/enter.wav')
+
         ring = tube.first_ring
 
         self.cam_root = NodePath("dummy")
@@ -120,14 +124,6 @@ class ShipControls(DirectObject):
         else:
             hor = 0
 
-        if pain > 0.8:
-            text = OnscreenText('CRASH!', fg=(1, 1, 1, 1), scale=0.5)
-        else:
-            text = OnscreenText('donk', fg=(1, 1-pain, 1-pain, 1), scale=0.05)
-            text.set_pos(hor * 0.5 + random() - 0.5, 0, random() - 0.5)
-        text.set_transparency(1)
-        Sequence(text.colorScaleInterval(2.0, (1, 1, 1, 0)), Func(text.destroy)).start()
-
         self.r_speed = hor * SHIP_DONK_FACTOR
 
         self.update_ship_rotation(-hor, force=True)
@@ -159,10 +155,10 @@ class ShipControls(DirectObject):
                     self.z_speed = 0
                     z = self.z_target
                 elif self.z_speed < 0:
-                    text = OnscreenText('splish', fg=(1, 1, 0, 1), scale=0.05)
-                    text.set_pos(random() - 0.5, 0, random() - 1.0)
-                    text.set_transparency(1)
-                    Sequence(text.colorScaleInterval(2.0, (1, 1, 1, 0)), Func(text.destroy)).start()
+                    if self.z_speed < -BOUNCE_LARGE_THRESHOLD:
+                        self.bounce_large.play()
+                    else:
+                        self.bounce_small.play()
                     z = self.z_target
                     self.z_speed = -self.z_speed * SHIP_BOUNCE
                 else:
