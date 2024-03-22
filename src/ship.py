@@ -20,7 +20,7 @@ SHIP_DONK_FACTOR = 100
 SHIP_HEIGHT = 0.2
 
 USE_GRAVITY = True
-SHIP_Z_ACC = 0.7
+SHIP_Z_ACC = 2.5
 SHIP_BOUNCE = 0.1
 
 # with higher value, will play big bounce sound only at higher vertical speeds
@@ -156,12 +156,15 @@ class ShipControls(DirectObject):
         if USE_GRAVITY:
             z = self.ship.ship.get_z()
             if z > self.z_target:
-                self.z_speed -= SHIP_Z_ACC * dt
+                if current_ring.override_gravity is not None:
+                    self.z_speed -= current_ring.override_gravity * dt
+                else:
+                    self.z_speed -= SHIP_Z_ACC * dt
                 z += self.z_speed * dt
 
             if z < self.z_target:
-                if abs(self.z_speed) < 0.1:
-                    self.z_speed = 0
+                if abs(self.z_speed) < 0.1 or abs(self.z_target - z) < 0.1:
+                    self.z_speed = -1
                     z = self.z_target
                 elif self.z_speed < 0:
                     if self.z_speed < -BOUNCE_LARGE_THRESHOLD:
@@ -172,10 +175,11 @@ class ShipControls(DirectObject):
                     self.z_speed = -self.z_speed * SHIP_BOUNCE
                 else:
                     self.z_speed += SHIP_Z_ACC * dt
+
                 z += self.z_speed * dt
                 if z < self.z_target:
                     z = self.z_target
-                    self.z_speed = 0
+                    self.z_speed = -1
 
         elif self.z_t < 1.0:
             self.z_t = min(1.0, self.z_t + dt)

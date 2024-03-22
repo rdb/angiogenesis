@@ -178,6 +178,7 @@ class Ring:
         self.end_depth = 0.0
         self.exits = [] # i, sw_left, sw_right
         self.play_tracks = ()
+        self.override_gravity = None
 
     def radius_at(self, y):
         t = (y - self.node_path.get_y()) / Y_SPACING + 0.5
@@ -428,16 +429,16 @@ class Tube:
         yield from self.gen_trench()
 
         self.next_tracks.add('space_big')
-        yield self.gen_passable_ring(delta=30)
+        yield self.gen_empty_ring(delta=30)
         yield self.gen_empty_ring(delta=60)
-        yield self.gen_passable_ring(delta=30)
+        yield self.gen_empty_ring(delta=30)
         yield from self.gen_tile_section(3)
         yield from self.gen_tile_section(1)
         yield from self.gen_trench()
         yield from self.gen_tile_section()
-        self.next_tracks.remove('space_big')
+        self.next_tracks.discard('space_big')
         yield self.gen_passable_ring()
-        self.next_tracks.remove('peace')
+        self.next_tracks.discard('peace')
 
         self.next_tracks.add('tight')
         yield from self.gen_transition(6)
@@ -456,7 +457,7 @@ class Tube:
         self.seg_count = 6
         yield self.gen_empty_ring(ts=self.ts_rift)
 
-        self.next_tracks.remove('tight')
+        self.next_tracks.discard('tight')
         self.next_tracks.add('space')
         self.next_tracks.add('drive')
 
@@ -471,14 +472,15 @@ class Tube:
         # mouth... ewww
         self.seg_count = 200
         #yield self.gen_empty_ring()
-        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 100)
-        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 40)
-        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 15)
-        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 6)
-        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 3)
+        gravity = 0.7
+        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 100, override_gravity=gravity)
+        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 40, override_gravity=gravity)
+        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 15, override_gravity=gravity)
+        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 6, override_gravity=gravity)
+        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 3, override_gravity=gravity)
 
-        self.next_tracks.remove('space')
-        self.next_tracks.remove('drive')
+        self.next_tracks.discard('space')
+        self.next_tracks.discard('drive')
         self.next_tracks.add('ambient')
 
         ring = self.last_ring
@@ -639,7 +641,7 @@ class Tube:
             ring.end_depth = TRENCH_DEPTH
             yield ring
 
-        self.next_tracks.remove('medium')
+        self.next_tracks.discard('medium')
         self.next_tracks.add('peace')
 
         if ts.exit_trenches:
@@ -649,7 +651,7 @@ class Tube:
             ring.start_depth = TRENCH_DEPTH
             yield ring
 
-    def gen_ring(self, set, width=1, parent=None, inst_parent=None, branch_root=None):
+    def gen_ring(self, set, width=1, parent=None, inst_parent=None, branch_root=None, override_gravity=None):
         count = len(set) * width
         from_radius = self.seg_count / AR_FACTOR
         to_radius = count / AR_FACTOR
@@ -669,6 +671,7 @@ class Tube:
         ring.branch_root = branch_root
         ring.play_tracks = tuple(self.next_tracks)
         ring.level = self.next_level
+        ring.override_gravity = override_gravity
 
         np = NodePath("ring")
         np.set_shader_inputs(
