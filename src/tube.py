@@ -463,8 +463,8 @@ class Tube:
 
         self.fog_factor = 0.04
         self.twist_factor = 5.0
-        self.bend_time_factor = 0.0002
-        self.bend_y_factor = 0.0
+        self.bend_time_factor = 0.0003
+        self.bend_y_factor = 0.0002
 
         ts = self.ts_flesh
         self.ts_level = ts
