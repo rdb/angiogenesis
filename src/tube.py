@@ -452,6 +452,8 @@ class Tube:
         self.seg_count = 6
         yield self.gen_empty_ring(ts=self.ts_rift)
 
+        self.next_tracks.remove('tight')
+        self.next_tracks.add('space')
         self.next_tracks.add('drive')
 
         self.fog_factor = 0.04
@@ -471,6 +473,8 @@ class Tube:
         yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 6)
         yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 3)
 
+        self.next_tracks.remove('space')
+        self.next_tracks.remove('drive')
         self.next_tracks.add('ambient')
 
         ring = self.last_ring
@@ -489,7 +493,9 @@ class Tube:
         yield from self.gen_tile_section()
         yield from self.gen_tile_section()
         yield self.gen_passable_ring(delta=-3)
+        self.next_tracks.add('drive')
         yield from self.gen_transition(6)
+
         yield from self.gen_tile_section()
         yield from self.gen_tile_section()
         yield self.gen_passable_ring(delta=3)
