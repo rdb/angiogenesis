@@ -1,4 +1,5 @@
 from panda3d.core import NodePath
+from panda3d.core import ColorBlendAttrib, TransparencyAttrib
 from panda3d.core import Point3, Vec4
 
 from direct.showbase.DirectObject import DirectObject
@@ -35,33 +36,41 @@ class ShipTrail:
     def __init__(self, root, ship):
         self.ship = ship
         self.trail = MotionTrail("ship", self.ship)
-
         taskMgr.remove(self.trail.motion_trail_task_name)
-        self.trail.time_window = 0.1 # Length of trail
-        self.trail.resolution_distance = 0.001
+        self.trail.time_window = 0.4 # Length of trail
+        self.trail.resolution_distance = 0.00001
         self.trail.register_motion_trail()
         self.trail.geom_node_path.reparent_to(render)
+        self.trail.geom_node_path.node().setAttrib(
+            ColorBlendAttrib.make(
+                ColorBlendAttrib.M_add,
+                ColorBlendAttrib.O_incoming_alpha,
+                ColorBlendAttrib.O_one
+            )
+        )
         for v, pc in enumerate((
-            (Point3(-0.10, -0.00, -0.05),Vec4(1,0,1,0)),
-            (Point3(-0.08, -0.00, -0.05),Vec4(1,0,1,1)),
-            (Point3(-0.06, -0.00, -0.05),Vec4(1,0,1,0)),
-            (Point3(-0.00, -0.00, -0.05),Vec4(1,0,1,0)),
-            (Point3( 0.06, -0.00, -0.05),Vec4(1,0,1,0)),
-            (Point3( 0.08, -0.00, -0.05),Vec4(1,0,1,1)),
-            (Point3( 0.100,-0.00, -0.05),Vec4(1,0,1,0)),
+            (Point3(-0.11,  0.00, -0.05),Vec4(0,0,0,0)),
+            (Point3(-0.08,  0.00, -0.05),Vec4(1,0,1,1)),
+            (Point3(-0.05,  0.00, -0.05),Vec4(0,0,0,0)),
+            (Point3(-0.00,  0.00, -0.05),Vec4(0,0,0,0)),
+            (Point3( 0.05,  0.00, -0.05),Vec4(0,0,0,0)),
+            (Point3( 0.08,  0.00, -0.05),Vec4(1,0,1,1)),
+            (Point3( 0.11,  0.00, -0.05),Vec4(0,0,0,0)),
         )):
             pos, col = pc
             self.trail.add_vertex(pos)
             self.trail.set_vertex_color(v, col, col)
+        self.accum_dt = 0
         self.trail.update_vertices()
 
     def update(self, tube_y):
+        self.accum_dt += base.clock.dt
         mt = MotionTrail.motion_trail_list[0]
         transform = self.ship.getNetTransform().getMat()
         transform = transform * transform.translate_mat(0,tube_y,0)
         self.trail.geom_node_path.set_y(-tube_y)
         mt.transferVertices()
-        mt.cmotion_trail.updateMotionTrail(base.clock.getFrameTime(), transform)
+        mt.cmotion_trail.updateMotionTrail(self.accum_dt, transform)
 
 
 class Ship:
