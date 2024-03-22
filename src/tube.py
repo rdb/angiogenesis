@@ -14,6 +14,20 @@ from enum import Enum
 from .util import RingList
 
 
+LEVEL = 'steel'
+LEVELS = 'steel', 'rift', 'flesh'
+NUM_RINGS = 30
+X_SPACING = 2
+Y_SPACING = 40
+SPEED = 10
+AR_FACTOR = pi
+MIN_SEG_COUNT = 6
+MAX_SWERVE = 6
+
+SECTION_LENGTH = 3
+TRENCH_DEPTH = 2.5
+
+
 class NavType(Enum):
     EMPTY = 0
     PASSABLE = 1
@@ -30,22 +44,9 @@ class NavType(Enum):
         return self in (NavType.SWERVIBLE, NavType.PASSABLE, NavType.EMPTY)
 
 
-LEVEL = 'steel'
-LEVELS = 'steel', 'rift', 'flesh'
-NUM_RINGS = 30
-X_SPACING = 2
-Y_SPACING = 40
-SPEED = 10
-AR_FACTOR = pi
-MIN_SEG_COUNT = 6
-MAX_SWERVE = 6
-
-SECTION_LENGTH = 3
-TRENCH_DEPTH = 2.5
-
-
 class TileSet:
-    def __init__(self):
+    def __init__(self, name):
+        self.name = name
         self.entrance_trenches = []
         self.exit_trenches = []
         self.middle_trenches = []
@@ -90,6 +91,8 @@ class TileSet:
             cnp.hide()
             for c in cnp.children:
                 c.reparent_to(n)
+
+            cnp.set_tag("tileset", self.name)
 
             if num_solids == 0:
                 cnp = None
@@ -208,9 +211,14 @@ class Tube:
         self.first_ring = None
         self.last_ring = None
 
-        self.ts_steel = TileSet()
-        self.ts_rift = TileSet()
-        self.ts_flesh = TileSet()
+        self.fog_factor = 0.04
+        self.twist_factor = 0.0
+        self.bend_time_factor = 0.0
+        self.bend_y_factor = 0.0
+
+        self.ts_steel = TileSet('steel')
+        self.ts_rift = TileSet('rift')
+        self.ts_flesh = TileSet('flesh')
         self.ts_level = getattr(self, 'ts_' + LEVEL)
 
         model = loader.load_model('assets/bam/segments/segments.bam')
@@ -379,6 +387,11 @@ class Tube:
         yield from self.gen_flesh_level()
 
     def gen_steel_level(self):
+        self.fog_factor = 0.004
+        self.twist_factor = 0.0
+        self.bend_time_factor = 0.0
+        self.bend_y_factor = 0.0002
+
         self.seg_count = 2
         self.ts_level = self.ts_steel
         yield self.gen_empty_ring(delta=18)
@@ -401,6 +414,11 @@ class Tube:
         # Always start with empty
         self.seg_count = 6
         yield self.gen_empty_ring(ts=self.ts_rift)
+
+        self.fog_factor = 0.04
+        self.twist_factor = 5.0
+        self.bend_time_factor = 0.001
+        self.bend_y_factor = 0.0
 
         ts = self.ts_flesh
         self.ts_level = ts
@@ -591,8 +609,11 @@ class Tube:
         ring.branch_root = branch_root
 
         np = NodePath("ring")
-        np.set_shader_input("num_segments", count)
-        np.set_shader_input("radius", (from_radius, to_radius))
+        np.set_shader_inputs(
+            num_segments=count,
+            radius=(from_radius, to_radius),
+            level_params=(self.fog_factor, self.twist_factor, self.bend_time_factor, self.bend_y_factor),
+        )
         np.node().set_final(True)
         ring.node_path = np
 

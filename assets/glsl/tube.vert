@@ -20,6 +20,9 @@ varying vec4 v_color;
 varying vec2 v_texcoord;
 varying mat3 v_world_tbn;
 
+// fog, twistiness, bend time factor, bend y factor
+uniform vec4 level_params;
+
 uniform int num_segments;
 uniform vec2 radius;
 uniform vec2 start_center;
@@ -41,7 +44,7 @@ void main() {
     float interp_radius = (radius[1] * rt + radius[0] * (1-rt));
 
     float world_y = p3d_Vertex.y + p3d_ModelMatrix[3].y;
-    float effect_fac = smoothstep(20, 100, world_y) * 5 / interp_radius;
+    float effect_fac = smoothstep(20, 100, world_y) * level_params[1] / interp_radius;
     phi += effect_fac * sin(y / 25);
 
     //phi += (y + p3d_Vertex.y + p3d_ModelMatrix[3].y) * 0.02;
@@ -59,7 +62,7 @@ void main() {
     //vec2 bending = vec2(sin(y / 20), cos(y / 10)) * 0.0001 * effect_fac;
     //vec2 bending = vec2(sin(y / 200), model_position.y) * 0.00002;
     float clamped_world_y = max(0, world_y - 10);
-    vec2 bending = vec2(sin(y / 177), cos(y / 13)) * 0.001 * clamped_world_y * clamped_world_y;
+    vec2 bending = (vec2(sin(y / 177), cos(y / 13)) * level_params[2] + vec2(sin(model_position.y / 369), cos(model_position.y / 231)) * level_params[3]) * clamped_world_y * clamped_world_y;
 
     model_normal += vec3(0, (radius[0] - radius[1]) / 40 + dot(normalize(model_position.xz), bending.xy) * 0.1, 0);
     model_normal = normalize(model_normal);
@@ -89,7 +92,7 @@ void main() {
 
     // Exponential fog
     float fog_distance = length(view_position.xyz / view_position.w);
-    float fog_factor = clamp(1.0 / exp(fog_distance * 0.04), 0.0, 1.0);
+    float fog_factor = clamp(1.0 / exp(fog_distance * level_params.x), 0.0, 1.0);
     v_color.a *= fog_factor;
 
     vec3 world_normal = model_normal;

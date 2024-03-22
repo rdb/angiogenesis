@@ -156,10 +156,12 @@ void main() {
     vec2 env_brdf = texture2D(brdf_lut, vec2(n_dot_v, perceptual_roughness)).rg;
     vec3 ibl_spec_color = textureCubeLod(filtered_env_map, ibl_r.zxy, perceptual_roughness * max_reflection_lod).rgb * 0.5;
     vec3 ibl_spec = ibl_spec_color * (ibl_f * env_brdf.x + env_brdf.y);
-    color.rgb += (ibl_kd * ibl_diff  + ibl_spec) * ambient_occlusion;
+    color.rgb += (ibl_kd * ibl_diff  + ibl_spec);
 
     // Emission
-    color.rgb += emission * 100;
+    color.rgb += emission * 500;
+
+    color.rgb *= ambient_occlusion;
 
 #ifdef USE_330
     o_color = color;
