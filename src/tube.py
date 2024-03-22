@@ -14,11 +14,20 @@ from enum import Enum
 from .util import RingList
 
 
-class NavType:
+class NavType(Enum):
+    EMPTY = 0
     PASSABLE = 1
     SWERVIBLE = 2 # sic
     IMPASSABLE = 3
     TUNNEL = 4 # non-swervable but passable
+
+    @property
+    def is_passable(self):
+        return self in (NavType.EMPTY, NavType.PASSABLE, NavType.TUNNEL)
+
+    @property
+    def is_swervible(self): #sic
+        return self in (NavType.SWERVIBLE, NavType.PASSABLE, NavType.EMPTY)
 
 
 LEVEL = 'flesh'
@@ -109,12 +118,14 @@ class Tube:
         self.middle_trenches = []
         self.impassable_trenches = []
         self.tile1_by_type = {
+            NavType.EMPTY: [],
             NavType.PASSABLE: [],
             NavType.IMPASSABLE: [],
             NavType.SWERVIBLE: [],
             NavType.TUNNEL: [],
         }
         self.tile3_by_type = {
+            NavType.EMPTY: [],
             NavType.PASSABLE: [],
             NavType.IMPASSABLE: [],
             NavType.SWERVIBLE: [],
@@ -181,6 +192,8 @@ class Tube:
                 self.middle_trenches.append(seg)
             elif name.startswith('trench3_impassable'):
                 self.impassable_trenches.append(seg)
+            elif name.startswith('tile1_empty'):
+                self.tile1_by_type[NavType.EMPTY].append(seg)
             elif name.startswith('tile1_impassable'):
                 self.tile1_by_type[NavType.IMPASSABLE].append(seg)
             elif name.startswith('tile1_impasssable'): # sic
@@ -191,6 +204,8 @@ class Tube:
                 self.tile1_by_type[NavType.TUNNEL].append(seg)
             elif name.startswith('tile1_passable'):
                 self.tile1_by_type[NavType.PASSABLE].append(seg)
+            elif name.startswith('tile3_empty'):
+                self.tile3_by_type[NavType.EMPTY].append(seg)
             elif name.startswith('tile3_impassable'):
                 self.tile3_by_type[NavType.IMPASSABLE].append(seg)
             elif name.startswith('tile3_swervible'): # sic
@@ -203,8 +218,6 @@ class Tube:
                 self.tile3_by_type[NavType.PASSABLE].append(seg)
 
         print(f"Removed {num_culled} of {num_nonculled + num_culled} collision polygons.")
-
-        self.empty_tiles = [self.segments['tile3_empty']]
 
         self.seg_count = 20
         self.next_emptyish = False
@@ -235,15 +248,15 @@ class Tube:
         types = RingList(self.random.choices((NavType.IMPASSABLE, NavType.IMPASSABLE, NavType.IMPASSABLE, NavType.IMPASSABLE, NavType.PASSABLE if allow_passable else NavType.TUNNEL)) * count)
 
         for i, sw_left, sw_right in exits:
-            if types[i] in (NavType.PASSABLE, NavType.TUNNEL):
+            if types[i].is_passable:
                 continue
 
             sw_next = (types[i] == NavType.SWERVIBLE)
 
-            if (sw_next or sw_left) and types[i - 1] == NavType.PASSABLE:
+            if (sw_next or sw_left) and types[i - 1] in (NavType.PASSABLE, NavType.EMPTY):
                 continue
 
-            if (sw_next or sw_right) and types[i + 1] == NavType.PASSABLE:
+            if (sw_next or sw_right) and types[i + 1] in (NavType.PASSABLE, NavType.EMPTY):
                 continue
 
             if sw_left and types[i - 1] == NavType.TUNNEL:
@@ -252,16 +265,16 @@ class Tube:
             if sw_right and types[i + 1] == NavType.TUNNEL:
                 continue
 
-            if sw_left >= 2 and types[i - 2] == NavType.PASSABLE:
+            if sw_left >= 2 and types[i - 2] in (NavType.PASSABLE, NavType.EMPTY):
                 continue
 
-            if sw_right >= 2 and types[i + 2] == NavType.PASSABLE:
+            if sw_right >= 2 and types[i + 2] in (NavType.PASSABLE, NavType.EMPTY):
                 continue
 
-            if sw_left and sw_next and types[i - 1] == NavType.SWERVIBLE and types[i - 2] == NavType.PASSABLE:
+            if sw_left and sw_next and types[i - 1] == NavType.SWERVIBLE and types[i - 2] in (NavType.PASSABLE, NavType.EMPTY):
                 continue
 
-            if sw_right and sw_next and types[i + 1] == NavType.SWERVIBLE and types[i + 2] == NavType.PASSABLE:
+            if sw_right and sw_next and types[i + 1] == NavType.SWERVIBLE and types[i + 2] in (NavType.PASSABLE, NavType.EMPTY):
                 continue
 
             choices = []
@@ -279,16 +292,22 @@ class Tube:
             if (choice < 0 and not sw_left) or (choice > 0 and not sw_right):
                 # To get to this one, need to swerve through the tile ahead
                 assert allow_swervible or allow_passable
-                if allow_swervible and types[i] != NavType.PASSABLE:
+                if allow_swervible and types[i] != NavType.PASSABLE and types[i] != NavType.EMPTY:
                     types[i] = NavType.SWERVIBLE
                 else:
                     # we just have to make this one passable
-                    types[i] = NavType.PASSABLE
+                    if types[i] != NavType.EMPTY:
+                        types[i] = NavType.PASSABLE
                     continue
                 types[i + choice] = NavType.PASSABLE
             else:
                 assert allow_tunnel or allow_passable
-                types[i + choice] = NavType.TUNNEL if allow_tunnel else NavType.PASSABLE
+                if allow_tunnel:
+                    types[i + choice] = NavType.TUNNEL
+                elif allow_passable:
+                    types[i + choice] = NavType.PASSABLE
+                else:
+                    types[i + choice] = NavType.EMPTY
 
             if abs(choice) == 2:
                 # To get to this one, the one between it must also be swervible
@@ -358,11 +377,30 @@ class Tube:
         yield self.gen_ring([self.segments[seg] for seg in self.segments if 'obstacle' in seg and 'tile1' in seg] * 3)
 
         ring = self.last_ring
-        ring.exits.append((2, 0, 0))
-        #self.exits
+        ring.exits.append((self.random.randrange(0, 3), 0, 0))
 
+        #yield from self.gen_tile_section()
+        #yield from self.gen_tile_section()
+
+        # stomach or something ew
+        ring = self.gen_empty_ring(delta=-self.seg_count + 3)
+        ring.node_path.set_shader_input("radius", (ring.start_radius, 1))
+        yield ring
+        self.seg_count = 40
+        yield self.gen_empty_ring()
+        yield self.gen_passable_ring()
         yield from self.gen_tile_section()
         yield from self.gen_tile_section()
+        yield from self.gen_transition(6)
+        yield from self.gen_tile_section()
+        yield from self.gen_tile_section()
+        yield self.gen_passable_ring(delta=3)
+        yield from self.gen_tile_section()
+        yield from self.gen_tile_section()
+        yield self.gen_passable_ring(delta=3)
+        yield from self.gen_tile_section()
+        yield from self.gen_tile_section()
+        yield self.gen_passable_ring(delta=-3)
 
         while True:
             yield self.gen_empty_ring()
@@ -382,7 +420,7 @@ class Tube:
         rad = (to_segs - len(types)) / AR_FACTOR - 3
         fac = tau / self.seg_count
         for seg in range(self.seg_count):
-            if types[seg] in (NavType.PASSABLE, NavType.TUNNEL):
+            if types[seg].is_passable:
                 center = Vec2(-sin(seg * fac), cos(seg * fac)) * rad
                 inst = self.root.attach_new_node('inst')
                 branch_root.instance_to(inst)
@@ -454,7 +492,7 @@ class Tube:
             tiles = self.tile3_by_type[NavType.PASSABLE]
             width = 3
 
-        segs = self.random.choices(tiles, k=int(ceil((self.seg_count + delta) / 3)))
+        segs = self.random.choices(tiles, k=int(ceil((self.seg_count + delta) / width)))
         ring = self.gen_ring(segs)
 
         for i in range(len(segs)):
@@ -463,10 +501,10 @@ class Tube:
         return ring
 
     def gen_empty_ring(self, delta=0):
-        if 'tile1_empty' in self.segments:
-            segs = [self.segments['tile1_empty']] * (self.seg_count + delta)
+        if self.tile1_by_type[NavType.EMPTY]:
+            segs = self.random.choices(self.tile1_by_type[NavType.EMPTY], k=max(1, self.seg_count + delta))
         else:
-            segs = [self.segments['tile3_empty']] * int(ceil((self.seg_count + delta) / 3))
+            segs = self.random.choices(self.tile3_by_type[NavType.EMPTY], k=int(ceil((self.seg_count + delta) / 3)))
 
         ring = self.gen_ring(segs)
 

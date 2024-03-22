@@ -21,6 +21,7 @@ SHIP_HEIGHT = 0.2
 
 USE_GRAVITY = True
 SHIP_Z_ACC = 0.7
+SHIP_BOUNCE = 0.1
 
 
 def smoothstep(x):
@@ -109,15 +110,32 @@ class ShipControls(DirectObject):
         is_down = base.mouseWatcherNode.is_button_down
 
         current_ring = self.tube.current_ring
-        self.set_ship_z_target(SHIP_HEIGHT - max(current_ring.start_radius + current_ring.start_depth, current_ring.end_radius + current_ring.end_depth))
+        #self.set_ship_z_target(SHIP_HEIGHT - max(current_ring.start_radius + current_ring.start_depth, current_ring.end_radius + current_ring.end_depth))
+        self.set_ship_z_target(SHIP_HEIGHT - current_ring.radius_at(0.0) - current_ring.depth_at(0.0))
 
         if USE_GRAVITY:
             z = self.ship.ship.get_z()
             if z > self.z_target:
                 self.z_speed -= SHIP_Z_ACC * dt
-            elif z < self.z_target:
-                self.z_speed += SHIP_Z_ACC * dt
-            z += self.z_speed * dt
+                z += self.z_speed * dt
+
+            if z < self.z_target:
+                if abs(self.z_speed) < 0.1:
+                    self.z_speed = 0
+                    z = self.z_target
+                elif self.z_speed < 0:
+                    text = OnscreenText('splish', fg=(1, 1, 0, 1), scale=0.05)
+                    text.set_pos(random() - 0.5, 0, random() - 1.0)
+                    text.set_transparency(1)
+                    Sequence(text.colorScaleInterval(2.0, (1, 1, 1, 0)), Func(text.destroy)).start()
+                    z = self.z_target
+                    self.z_speed = -self.z_speed * SHIP_BOUNCE
+                else:
+                    self.z_speed += SHIP_Z_ACC * dt
+                z += self.z_speed * dt
+                if z < self.z_target:
+                    z = self.z_target
+                    self.z_speed = 0
 
         elif self.z_t < 1.0:
             self.z_t = min(1.0, self.z_t + dt)
@@ -126,7 +144,7 @@ class ShipControls(DirectObject):
         else:
             z = self.z_target
 
-        z = max(z, SHIP_HEIGHT - current_ring.radius_at(0.0) - current_ring.depth_at(0.0))
+        #z = max(z, self.z_target)
         self.ship.ship.set_z(z)
 
         hor = is_down('arrow_right') - is_down('arrow_left')

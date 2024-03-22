@@ -47,10 +47,23 @@ controls = ShipControls(ship, tube)
 
 donk = Collisions(tube, controls)
 
+paused = False
+
+def toggle_pause():
+    global paused
+    paused = not paused
+
+base.accept('p', toggle_pause)
+
 
 def update(task):
+    if paused:
+        return task.cont
+
     # Run simulation at least every 20 ms
     dt = base.clock.dt
+    if base.mouseWatcherNode.is_button_down('lshift'):
+        dt *= 8
     num_steps = ceil(dt / 0.020)
     dt /= num_steps
     num_steps = min(10, num_steps)

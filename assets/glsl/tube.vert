@@ -40,10 +40,9 @@ void main() {
     float rt = (p3d_Vertex.y / 40 + 0.5);
     float interp_radius = (radius[1] * rt + radius[0] * (1-rt));
 
-    float effect_fac = max(p3d_Vertex.y + p3d_ModelMatrix[3].y - 20, 0);
-    //effect_fac = effect_fac * effect_fac * interp_radius;
-
-    phi += effect_fac * sin(y / 25) * 0.00003;
+    float world_y = p3d_Vertex.y + p3d_ModelMatrix[3].y;
+    float effect_fac = smoothstep(20, 100, world_y) * 5 / interp_radius;
+    phi += effect_fac * sin(y / 25);
 
     //phi += (y + p3d_Vertex.y + p3d_ModelMatrix[3].y) * 0.02;
 
@@ -57,10 +56,11 @@ void main() {
     vec2 center = (end_center * rt + start_center * (1-rt));
     model_position.xz += center;
 
-    vec2 bending = vec2(sin(y / 20), cos(y / 10)) * 0.0001 * effect_fac;
+    //vec2 bending = vec2(sin(y / 20), cos(y / 10)) * 0.0001 * effect_fac;
     //vec2 bending = vec2(sin(y / 200), model_position.y) * 0.00002;
+    vec2 bending = vec2(sin(y / 177), cos(y / 13)) * 0.001 * world_y * world_y;
 
-    model_normal += vec3(0, (radius[0] - radius[1]) / 40 + dot(normalize(model_position.xz), bending.xy), 0);
+    model_normal += vec3(0, (radius[0] - radius[1]) / 40 + dot(normalize(model_position.xz), normalize(bending.xy)) * 0.1, 0);
     model_normal = normalize(model_normal);
 
     mat3 basis = mat3(
@@ -79,7 +79,7 @@ void main() {
     world_position.z += bending.y;
 
     vec4 view_position = p3d_ViewMatrix * world_position;
-    v_world_position = model_position.xyz;
+    v_world_position = world_position.xyz;
     v_color = p3d_Color;
     v_texcoord = (p3d_TextureMatrix * vec4(p3d_MultiTexCoord0, 0, 1)).xy;
 
