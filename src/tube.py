@@ -224,6 +224,7 @@ class Tube:
         self.music.load_track('drive', 'assets/music/b/B-drive.mp3')
         self.music.play()
 
+        self.next_level = 'steel'
         self.next_tracks = set()
 
         self.fog_factor = 0.04
@@ -412,6 +413,7 @@ class Tube:
         self.twist_factor = 0.0
         self.bend_time_factor = 0.0
         self.bend_y_factor = 0.0002
+        self.next_level = 'steel'
 
         self.seg_count = 20
         self.ts_level = self.ts_steel
@@ -444,11 +446,13 @@ class Tube:
         yield from self.gen_tile_section()
 
     def gen_rift_level(self):
+        self.next_level = 'rift'
         self.ts_level = self.ts_rift
         yield self.gen_empty_ring()
 
     def gen_flesh_level(self):
         # Always start with empty
+        self.next_level = 'flesh'
         self.seg_count = 6
         yield self.gen_empty_ring(ts=self.ts_rift)
 
@@ -664,6 +668,7 @@ class Tube:
         ring.inst_parent = inst_parent
         ring.branch_root = branch_root
         ring.play_tracks = tuple(self.next_tracks)
+        ring.level = self.next_level
 
         np = NodePath("ring")
         np.set_shader_inputs(
