@@ -3,7 +3,9 @@ from panda3d.core import ColorBlendAttrib, TransparencyAttrib
 from panda3d.core import Point3, Vec4
 
 from direct.showbase.DirectObject import DirectObject
+from direct.interval.IntervalGlobal import Sequence, Func
 from direct.motiontrail.MotionTrail import MotionTrail
+from direct.gui.OnscreenText import OnscreenText
 from random import random
 
 
@@ -132,6 +134,11 @@ class ShipControls(DirectObject):
             hor = -1
         else:
             hor = 0
+
+        if pain > 0.8:
+            text = OnscreenText('CRASH!', fg=(1, 1, 1, 1), scale=0.5)
+            text.set_transparency(1)
+            Sequence(text.colorScaleInterval(2.0, (1, 1, 1, 0)), Func(text.destroy)).start()
 
         self.r_speed = hor * SHIP_DONK_FACTOR
 

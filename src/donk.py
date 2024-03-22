@@ -46,6 +46,9 @@ class Collisions:
         self.flesh_scrape = base.loader.load_sfx('assets/sfx/f_scratch.wav')
         self.flesh_scrape.set_loop(True)
 
+        self.steel_explode = loader.load_sfx('assets/sfx/explode.wav')
+        self.flesh_explode = loader.load_sfx('assets/sfx/f_explode.wav')
+
         if DONK_DEBUG:
             self.cship.show()
             self.trav.show_collisions(self.croot)
@@ -124,7 +127,14 @@ class Collisions:
             pain = -moved.xy.normalized().y
             self.controls.donk(deflect, pain)
 
-            if not self.scraping:
+            if pain > 0.8:
+                if self.scrape:
+                    self.scrape.stop()
+
+                explode = self.steel_explode if current_ring.level == 'steel' else self.flesh_explode
+                explode.play()
+
+            elif not self.scraping:
                 new_scrape = self.steel_scrape if current_ring.level == 'steel' else self.flesh_scrape
                 if self.scrape != new_scrape:
                     if self.scrape:
@@ -146,7 +156,7 @@ class Collisions:
             self.scraping += dt
 
         elif self.scraping:
-            if self.scraping < 0.1:
+            if self.scraping < 0.1 and self.scrape:
                 self.scrape.stop()
             self.scraping = 0
 
