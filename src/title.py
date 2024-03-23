@@ -16,6 +16,7 @@ class Title:
         self.ship.set_scale(0.05)
         self.ship.flatten_strong()
         self.ship.set_scale(20)
+        self.ship.set_hpr(-17.9335, 0.0881002, 0)
         pos = self.ship_parent.get_pos()
         hpr = self.ship.get_hpr()
 
@@ -48,7 +49,6 @@ class Title:
 
     def on_load_mega(self, mega):
         mega.reparent_to(self.root)
-        self.ship.look_at(mega)
         mega.set_pos(800,2500,0)
         mega.set_scale(50)
         Sequence(
