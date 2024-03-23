@@ -563,12 +563,12 @@ class Tube:
         #yield from self.gen_tile_section()
 
         # stomach or something ew
-        ring = self.gen_empty_ring(delta=-self.seg_count + 3)
+        ring = self.gen_empty_ring(delta=-self.seg_count + 3, override_gravity=1)
         ring.node_path.set_shader_input("radius", (ring.start_radius, 1))
         yield ring
         self.seg_count = 40
-        yield self.gen_empty_ring()
-        yield self.gen_passable_ring()
+        yield self.gen_empty_ring(override_gravity=1)
+        yield self.gen_passable_ring(override_gravity=1)
         yield from self.gen_tile_section()
         yield from self.gen_tile_section()
         yield self.gen_passable_ring(delta=-3)
@@ -707,7 +707,7 @@ class Tube:
             ring.exits = exits
             yield ring
 
-    def gen_passable_ring(self, delta=0, ts=None):
+    def gen_passable_ring(self, delta=0, ts=None, override_gravity=None):
         ts = ts or self.ts_level
 
         tiles = ts.tile1_by_type[NavType.PASSABLE]
@@ -717,14 +717,14 @@ class Tube:
             width = 3
 
         segs = self.random.choices(tiles, k=int(ceil((self.seg_count + delta) / width)))
-        ring = self.gen_ring(segs, width=width)
+        ring = self.gen_ring(segs, width=width, override_gravity=override_gravity)
 
         for i in range(len(segs)):
             ring.exits.append((i, 1, 1))
 
         return ring
 
-    def gen_empty_ring(self, delta=0, ts=None):
+    def gen_empty_ring(self, delta=0, ts=None, override_gravity=None):
         ts = ts or self.ts_level
 
         if ts.tile1_by_type[NavType.EMPTY]:
@@ -734,7 +734,7 @@ class Tube:
             segs = self.random.choices(ts.tile3_by_type[NavType.EMPTY], k=int(ceil((self.seg_count + delta) / 3)))
             width = 3
 
-        ring = self.gen_ring(segs, width=width)
+        ring = self.gen_ring(segs, width=width, override_gravity=override_gravity)
 
         for i in range(len(segs)):
             ring.exits.append((i, 4, 4))
