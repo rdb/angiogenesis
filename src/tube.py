@@ -103,7 +103,7 @@ class TileSet:
             cnp = None
 
         # Code isn't handling multiple collision nodes yet
-        assert not n.find("**/+CollisionNode")
+        #assert not n.find("**/+CollisionNode")
         n.find_all_matches("**/+CollisionNode").detach()
 
         n.clear_transform()
@@ -214,6 +214,7 @@ class Tube:
     def __init__(self, seed=2):
         self.root = NodePath("root")
         self.root.set_shader(shader)
+        self.root.set_shader_input('y', 0)
         self.root.node().set_final(True)
         self.root.node().set_bounds(OmniBoundingVolume())
         self.branch_root = self.root.attach_new_node("trunk")

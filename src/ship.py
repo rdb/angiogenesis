@@ -39,14 +39,16 @@ def smoothstep(x):
 
 
 class ShipTrail:
-    def __init__(self, root, ship):
+    def __init__(self, ship, parent=None):
+        self.parent = parent or base.render
         self.ship = ship
         self.trail = MotionTrail("ship", self.ship)
         taskMgr.remove(self.trail.motion_trail_task_name)
         self.trail.time_window = 0.4 # Length of trail
         self.trail.resolution_distance = 0.00001
         self.trail.register_motion_trail()
-        self.trail.geom_node_path.reparent_to(render)
+        #self.trail.set_depth_test(False)
+        self.trail.geom_node_path.reparent_to(self.parent)
         self.trail.geom_node_path.node().setAttrib(
             ColorBlendAttrib.make(
                 ColorBlendAttrib.M_add,
@@ -69,17 +71,21 @@ class ShipTrail:
         self.accum_dt = 0
         self.trail.update_vertices()
 
-    def update(self, tube_y):
+    def update(self, tube_y, x=0, off=(0, 0, 0)):
         self.accum_dt += base.clock.dt
-        transform = self.ship.getNetTransform().getMat()
-        transform = transform * transform.translate_mat(0,tube_y,0)
-        self.trail.geom_node_path.set_y(-tube_y)
+        transform = self.ship.get_transform(self.parent).get_mat()
+        transform = transform * transform.translate_mat(x,tube_y,0)
+        self.trail.geom_node_path.set_pos(Point3(-x, -tube_y, 0) + off)
         self.trail.transferVertices()
         self.trail.cmotion_trail.updateMotionTrail(self.accum_dt, transform)
 
     def reset(self):
         self.trail.reset_motion_trail()
         self.trail.reset_motion_trail_geometry()
+
+    def destroy(self):
+        self.reset()
+        self.trail.delete()
 
 
 class PathHistory:
@@ -152,7 +158,7 @@ class Ship:
     def __init__(self):
         self.root = NodePath("dummy")
         self.ship = loader.load_model("assets/bam/ship/ship.bam")
-        self.trail = ShipTrail(self.root, self.ship)
+        self.trail = ShipTrail(self.ship)
         #self.ship.set_hpr(90, 90, 90)
         self.ship.set_scale(0.05)
         self.ship.flatten_strong()

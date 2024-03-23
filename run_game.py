@@ -5,6 +5,7 @@ import simplepbr
 from src.tube import Tube
 from src.ship import Ship, ShipControls
 from src.donk import Collisions
+from src.title import Title
 
 from math import ceil
 
@@ -22,6 +23,7 @@ env_map.filtered_env_map.set_minfilter(SamplerState.FT_linear_mipmap_linear)
 env_map.filtered_env_map.set_magfilter(SamplerState.FT_linear_mipmap_linear)
 
 simplepbr.init(
+    msaa_samples=4,
     max_lights=0,
     use_normal_maps=True,
     use_emission_maps=True,
@@ -37,52 +39,63 @@ alight = AmbientLight('alight')
 alight.set_color((0, 0, 0, 1))
 render.set_light(render.attach_new_node(alight))
 
-tube = Tube()
-tube.root.reparent_to(render)
 
-ship = Ship()
-ship.root.reparent_to(render)
+class Game:
+    def __init__(self):
+        self.title = Title()
+        self.paused = False
+        base.accept('space', self.launch)
 
-controls = ShipControls(ship, tube)
+    def launch(self):
+        base.ignore('space')
+        self.title.destroy()
+        self.title = None
 
-donk = Collisions(tube, controls)
+        base.camLens.set_near_far(0.1, 60 * 40)
 
-paused = False
+        self.ship = Ship()
+        self.ship.root.reparent_to(render)
 
-def toggle_pause():
-    global paused
-    paused = not paused
+        self.tube = Tube()
+        self.tube.root.reparent_to(render)
 
-base.accept('p', toggle_pause)
+        self.controls = ShipControls(self.ship, self.tube)
 
+        self.donk = Collisions(self.tube, self.controls)
 
-def update(task):
-    if paused:
+        base.accept('p', self.toggle_pause)
+        base.taskMgr.add(self.update, sort=1)
+
+    def toggle_pause(self):
+        self.paused = not self.paused
+
+    def update(self, task):
+        if self.paused:
+            return task.cont
+
+        # Run simulation at least every 20 ms
+        dt = base.clock.dt
+        if base.mouseWatcherNode.is_button_down('lshift'):
+            dt *= 8
+        num_steps = ceil(dt / 0.020)
+        dt /= num_steps
+        num_steps = min(10, num_steps)
+        for i in range(num_steps):
+            self.tube.update(dt)
+            self.controls.update(dt)
+            self.donk.update(dt)
+
         return task.cont
 
-    # Run simulation at least every 20 ms
-    dt = base.clock.dt
-    if base.mouseWatcherNode.is_button_down('lshift'):
-        dt *= 8
-    num_steps = ceil(dt / 0.020)
-    dt /= num_steps
-    num_steps = min(10, num_steps)
-    for i in range(num_steps):
-        tube.update(dt)
-        controls.update(dt)
-        donk.update(dt)
-    return task.cont
-
-base.taskMgr.add(update, sort=1)
 
 #base.render.set_render_mode_wireframe()
 
-base.camLens.set_near(0.1)
+#base.camLens.set_near(0.1)
 base.camLens.set_fov(80)
 
 base.disable_mouse()
-#base.camera.reparent_to(ship.ship)
-#base.camera.set_pos(0, -10, 0)
+
+game = Game()
 
 base.accept('f12', base.screenshot)
 
