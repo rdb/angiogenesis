@@ -1,6 +1,4 @@
-from random import uniform
 from direct.interval.IntervalGlobal import *
-from panda3d.core import LineSegs, Vec3, Fog
 from .ship import ShipTrail
 
 
@@ -9,22 +7,15 @@ class Title:
     def __init__(self):
         base.camLens.set_near(4)
         base.camLens.set_far(3000)
-        self.mega = loader.load_model("assets/bam/mega/mega.bam").copy_to(render)
-        self.mega.set_pos(800,2500,0)
-        self.mega.set_scale(50)
-        Sequence(
-            self.mega.quatInterval(100, (-180,0,0), startHpr=(0,0,0)),
-            self.mega.quatInterval(100, (-360,0,0), startHpr=(-180,0,0)),
-        ).loop()
-        self.mega.scaleInterval(300, 150, blendType="easeOut").start()
+        self.root = render.attach_new_node('title')
+        loader.load_model("assets/bam/mega/mega.bam", callback=self.on_load_mega)
 
-        self.ship_parent = render.attach_new_node("ship_parent")
+        self.ship_parent = self.root.attach_new_node("ship_parent")
         self.ship_parent.set_pos(-1, 25, -4)
         self.ship = loader.load_model("assets/bam/ship/ship.bam").copy_to(self.ship_parent)
         self.ship.set_scale(0.05)
         self.ship.flatten_strong()
         self.ship.set_scale(20)
-        self.ship.look_at(self.mega)
         pos = self.ship_parent.get_pos()
         hpr = self.ship.get_hpr()
 
@@ -39,7 +30,7 @@ class Title:
         )
         self.ship_pos_seq.loop()
 
-        self.title = loader.load_model("assets/bam/title/title.bam").copy_to(render)
+        self.title = loader.load_model("assets/bam/title/title.bam").copy_to(self.root)
         self.title.set_pos(-4,5,0)
         self.title.set_p(90)
         self.title.set_h(40)
@@ -51,36 +42,20 @@ class Title:
         )
         self.title_seq.loop()
 
-        segs = LineSegs("starfield")
-        def randvec(n):
-            return Vec3(uniform(-n,n), uniform(-n,n), uniform(-n,n))
-
-        for i in range(2048):
-            v = randvec(1000)
-            segs.set_color((1,1,1,1))
-            segs.move_to(v)
-            segs.draw_to(v+(0,2,0))
-            segs.set_color((0,1,1,0))
-
-        fields = render.attach_new_node("fields")
-        field = fields.attach_new_node(segs.create())
-        field_2 = field.copy_to(field)
-        field_2.set_y(2000)
-        field_3 = field.copy_to(field)
-        field_3.set_y(4000)
-        field.posInterval(10, pos=(0,-2000,0)).loop()
-        fields.set_h(-20)
-
-        fog = Fog("starfog")
-        fog.set_color((0,0,0,1))
-        fog.set_exp_density(0.002)
-        fields.attach_new_node(fog)
-        fields.set_fog(fog)
-        self.fields = fields
-
         self.a = 0
         self.trails = ShipTrail(self.ship, parent=self.ship_parent)
         self.task = base.task_mgr.add(self.update)
+
+    def on_load_mega(self, mega):
+        mega.reparent_to(self.root)
+        self.ship.look_at(mega)
+        mega.set_pos(800,2500,0)
+        mega.set_scale(50)
+        Sequence(
+            mega.quatInterval(100, (-180,0,0), startHpr=(0,0,0)),
+            mega.quatInterval(100, (-360,0,0), startHpr=(-180,0,0)),
+        ).loop()
+        mega.scaleInterval(300, 150, blendType="easeOut").start()
 
     def destroy(self):
         self.ship_rot_seq.finish()
@@ -89,9 +64,8 @@ class Title:
         self.task.remove()
         self.title.remove_node()
         self.ship_parent.remove_node()
-        self.fields.remove_node()
-        self.mega.remove_node()
         self.trails.destroy()
+        self.root.remove_node()
 
     def update(self, task):
         self.a += base.clock.dt

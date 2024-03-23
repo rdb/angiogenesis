@@ -27,8 +27,8 @@ MIN_SEG_COUNT = 6
 MAX_SWERVE = 6
 CULL_MARGIN = 5.0
 
-SECTION_LENGTH = 3
-TRENCH_DEPTH = 2.5
+SECTION_LENGTH = 2
+TRENCH_DEPTH = 2.8
 
 
 class NavType(Enum):
@@ -178,6 +178,7 @@ class Ring:
         self.exits = [] # i, sw_left, sw_right
         self.play_tracks = ()
         self.override_gravity = None
+        self.event = None
 
     @property
     def y(self):
@@ -208,7 +209,7 @@ class Ring:
 
 
 class Tube:
-    def __init__(self, seed=2):
+    def __init__(self, model, seed=None):
         self.root = NodePath("root")
         self.root.set_shader(shader)
         self.root.set_shader_input('y', 0)
@@ -246,8 +247,6 @@ class Tube:
         self.ts_flesh = TileSet('flesh')
         self.ts_level = getattr(self, 'ts_' + LEVEL)
 
-        model = loader.load_model('assets/bam/segments/segments.bam')
-
         print("Processing segments...")
         for n in model.children:
             name = n.name
@@ -269,6 +268,9 @@ class Tube:
         for i in range(NUM_RINGS):
             if self.last_ring.branch_root == self.branch_root:
                 next(self.generator)
+
+    def destroy(self):
+        self.root.remove_node()
 
     def calc_types(self, count, allow_swervible, allow_passable=True, allow_tunnel=True):
         exits = self.last_ring.exits
@@ -405,6 +407,9 @@ class Tube:
         ring = self.first_ring
         while ring is not None:
             if ring.y > -Y_SPACING / 2.0:
+                if ring.event:
+                    messenger.send(ring.event)
+                    ring.event = None
                 self.music.set_playing_tracks(ring.play_tracks)
                 self.current_ring = ring
                 if self.branch_root != ring.branch_root:
@@ -546,11 +551,11 @@ class Tube:
         self.seg_count = 200
         #yield self.gen_empty_ring()
         gravity = 0.7
-        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 100, override_gravity=gravity)
-        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 40, override_gravity=gravity)
-        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 15, override_gravity=gravity)
-        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 6, override_gravity=gravity)
-        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 3, override_gravity=gravity)
+        #yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 100, override_gravity=gravity)
+        #yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 40, override_gravity=gravity)
+        #yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 15, override_gravity=gravity)
+        #yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 6, override_gravity=gravity)
+        #yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 3, override_gravity=gravity)
 
         self.next_tracks.discard('space')
         self.next_tracks.discard('drive')
@@ -585,12 +590,13 @@ class Tube:
         yield from self.gen_tile_section()
         yield self.gen_passable_ring(delta=-3)
 
+        yield self.gen_empty_ring(delta=100, override_gravity=0.0)
+        ring = self.gen_empty_ring()
+        ring.event = 'endgame'
+        yield ring
+
         while True:
-            yield self.gen_empty_ring()
-            yield from self.gen_tile_section()
-            yield self.gen_empty_ring()
-            yield from self.gen_trench()
-            yield self.gen_empty_ring()
+            yield from self.gen_tile_section(override_gravity=0.0)
 
     def gen_transition(self, to_segs, ts=None):
         ts = ts or self.ts_level
@@ -636,7 +642,7 @@ class Tube:
         else:
             yield from self.gen_tile_section(width)
 
-    def gen_tile_section(self, width=None, ts=None):
+    def gen_tile_section(self, width=None, ts=None, override_gravity=None):
         if width is None:
             width = self.random.choice((1, 3))
 
@@ -654,7 +660,7 @@ class Tube:
             types = self.calc_types(count, allow_swervible=True, allow_tunnel=allow_tunnel)
             segs = RingList(self.random.choice(tiles[next_type]) for next_type in types)
 
-            ring = self.gen_ring(segs, width=width)
+            ring = self.gen_ring(segs, width=width, override_gravity=override_gravity)
             ring.exits = []
             for i in range(count):
                 if types[i] == NavType.TUNNEL:

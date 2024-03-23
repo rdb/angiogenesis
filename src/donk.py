@@ -67,6 +67,9 @@ class Collisions(DirectObject):
             cam = self.make_debug_camera((0.8, 0.95, 0.05, 0.95), lens=lens)
             cam.look_at(0, 0, -1)
 
+    def destroy(self):
+        self.croot.remove_node()
+
     def make_debug_camera(self, frame, lens):
         frame = Vec4(frame)
 

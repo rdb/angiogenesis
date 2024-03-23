@@ -86,6 +86,7 @@ class ShipTrail:
 
     def destroy(self):
         self.reset()
+        self.trail.geom_node_path.remove_node()
         self.trail.delete()
 
 
@@ -184,6 +185,10 @@ class Ship:
             mat.set_emission((1, 1, 1, 1))
             self.explosion_mat = mat
 
+    def destroy(self):
+        self.root.detach_node()
+        self.trail.destroy()
+
     def explode(self, duration):
         self.explosion.unstash()
         self.explosion.set_scale(0.01)
@@ -204,7 +209,7 @@ class ShipControls(DirectObject):
     def __init__(self, ship, tube):
         self.ship = ship
         self.tube = tube
-        base.taskMgr.add(self.cam_move, sort=4)
+        self.cam_task = base.taskMgr.add(self.cam_move, sort=4)
 
         self.bounce_large = loader.load_sfx('assets/sfx/bump1.wav')
         self.bounce_small = loader.load_sfx('assets/sfx/enter.wav')
@@ -250,6 +255,11 @@ class ShipControls(DirectObject):
         self.static_plane.set_alpha_scale(0.75)
         self.static_tex.loop = True
         self.static_plane.hide()
+
+    def destroy(self):
+        base.camera.wrt_reparent_to(render)
+        self.cam_root.remove_node()
+        self.cam_task.remove()
 
     def get_ship_z_above_ground(self):
         return self.ship.ship.get_z() + self.tube.current_ring.radius_at(0.0)
