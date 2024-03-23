@@ -16,7 +16,7 @@ from .gurgles import MultiTrack
 from .util import RingList
 
 
-LEVEL = 'rift'
+LEVEL = 'steel'
 LEVELS = 'steel', 'rift', 'flesh'
 NUM_RINGS = 30
 X_SPACING = 2
