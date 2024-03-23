@@ -551,11 +551,11 @@ class Tube:
         self.seg_count = 200
         #yield self.gen_empty_ring()
         gravity = 0.7
-        #yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 100, override_gravity=gravity)
-        #yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 40, override_gravity=gravity)
-        #yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 15, override_gravity=gravity)
-        #yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 6, override_gravity=gravity)
-        #yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 3, override_gravity=gravity)
+        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 100, override_gravity=gravity)
+        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 40, override_gravity=gravity)
+        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 15, override_gravity=gravity)
+        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 6, override_gravity=gravity)
+        yield self.gen_ring([ts.segments[seg] for seg in ts.segments if 'obstacle' in seg and 'tile1' in seg] * 3, override_gravity=gravity)
 
         self.next_tracks.discard('space')
         self.next_tracks.discard('drive')
