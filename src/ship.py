@@ -1,4 +1,4 @@
-from panda3d.core import NodePath
+from panda3d.core import NodePath, CardMaker, SamplerState
 from panda3d.core import ColorBlendAttrib, TransparencyAttrib
 from panda3d.core import Point3, Vec4
 
@@ -6,6 +6,7 @@ from direct.showbase.DirectObject import DirectObject
 from direct.interval.IntervalGlobal import Sequence, Wait, Func, LerpFunc
 from direct.motiontrail.MotionTrail import MotionTrail
 from direct.gui.OnscreenText import OnscreenText
+from direct.actor.Actor import Actor
 from random import random
 
 
@@ -26,8 +27,8 @@ SHIP_Z_ACC = 2.5
 SHIP_BOUNCE = 0.1
 
 REWIND_DIST = 40.0
-REWIND_TIME = 2.0
-REWIND_WAIT = 0.2
+REWIND_TIME = 1.75
+REWIND_WAIT = 2.0
 
 # with higher value, will play big bounce sound only at higher vertical speeds
 BOUNCE_LARGE_THRESHOLD = 1.0
@@ -49,7 +50,7 @@ class ShipTrail:
         self.trail.register_motion_trail()
         #self.trail.set_depth_test(False)
         self.trail.geom_node_path.reparent_to(self.parent)
-        self.trail.geom_node_path.node().setAttrib(
+        self.trail.geom_node_path.node().set_attrib(
             ColorBlendAttrib.make(
                 ColorBlendAttrib.M_add,
                 ColorBlendAttrib.O_incoming_alpha,
@@ -164,6 +165,40 @@ class Ship:
         self.ship.flatten_strong()
         self.ship.reparent_to(self.root)
 
+        self.explosion = Actor("assets/bam/explosions/explosion_1.bam")
+        self.explosion.reparent_to(self.ship)
+        self.explosion.stash()
+        self.explosion.set_p(90)
+        self.explosion.set_bin('fixed', 40)
+        self.explosion.show_through()
+        self.explosion.set_attrib(
+            ColorBlendAttrib.make(
+                ColorBlendAttrib.M_add,
+                ColorBlendAttrib.O_incoming_alpha,
+                ColorBlendAttrib.O_one
+            )
+        )
+        for mat in self.explosion.find_all_materials():
+            mat.set_base_color((0, 0, 0, 1))
+            mat.set_metallic(0)
+            mat.set_emission((1, 1, 1, 1))
+            self.explosion_mat = mat
+
+    def explode(self, duration):
+        self.explosion.unstash()
+        self.explosion.set_scale(0.01)
+        self.explosion.set_color_scale((1, 1, 1, 1))
+        self.explosion.set_play_rate(2.0, "explode")
+        self.explosion.play("explode")
+        self.explosion.scaleInterval(0.2, 0.6, blendType='easeOut').start()
+        self.explosion.colorScaleInterval(duration, (1, 1, 1, 0.3), blendType='easeInOut').start()
+
+    def unexplode(self, duration):
+        self.explosion.set_play_rate(-2.0, "explode")
+        self.explosion.play("explode")
+        Sequence(Wait(duration - 0.2), self.explosion.scaleInterval(0.2, 0.01, blendType='easeOut')).start()
+        Sequence(self.explosion.colorScaleInterval(duration, (1, 1, 1, 1), blendType='easeInOut'), Func(self.explosion.stash)).start()
+
 
 class ShipControls(DirectObject):
     def __init__(self, ship, tube):
@@ -173,6 +208,11 @@ class ShipControls(DirectObject):
 
         self.bounce_large = loader.load_sfx('assets/sfx/bump1.wav')
         self.bounce_small = loader.load_sfx('assets/sfx/enter.wav')
+        self.rewind_sound = loader.load_sfx('assets/sfx/rewind.wav')
+
+        self.steel_explode = loader.load_sfx('assets/sfx/explode.wav')
+        self.flesh_explode = loader.load_sfx('assets/sfx/f_explode.wav')
+        self.explode_reverse = loader.load_sfx('assets/sfx/explode_reverse.wav')
 
         ring = tube.first_ring
 
@@ -191,6 +231,25 @@ class ShipControls(DirectObject):
 
         self.history = PathHistory(max(CAM_TRAIL, REWIND_DIST))
         self.history.append(0, Vec4(0, base.camera.get_z(), 0, 0))
+
+        self.static_tex = loader.load_texture("assets/static.webm")
+        self.static_tex.set_minfilter(SamplerState.FT_nearest)
+        self.static_tex.set_magfilter(SamplerState.FT_nearest)
+        cm = CardMaker('card')
+        cm.set_frame_fullscreen_quad()
+        cm.set_uv_range(self.static_tex)
+        self.static_plane = render2d.attach_new_node(cm.generate())
+        self.static_plane.set_texture(self.static_tex)
+        self.static_plane.set_attrib(
+            ColorBlendAttrib.make(
+                ColorBlendAttrib.M_add,
+                ColorBlendAttrib.O_incoming_alpha,
+                ColorBlendAttrib.O_one
+            )
+        )
+        self.static_plane.set_alpha_scale(0.75)
+        self.static_tex.loop = True
+        self.static_plane.hide()
 
     def get_ship_z_above_ground(self):
         return self.ship.ship.get_z() + self.tube.current_ring.radius_at(0.0)
@@ -220,10 +279,10 @@ class ShipControls(DirectObject):
         self.update_ship_rotation(-hor, force=True)
 
     def crash(self):
-        text = OnscreenText('CRASH!', fg=(1, 1, 1, 1), scale=0.5)
-        text.set_transparency(1)
-        Sequence(text.colorScaleInterval(2.0, (1, 1, 1, 0)), Func(text.destroy)).start()
         self.tube.pause()
+
+        explode = self.steel_explode if self.tube.current_ring.level == 'steel' else self.flesh_explode
+        explode.play()
 
         def rewind(y):
             self.tube.set_y(y)
@@ -251,12 +310,19 @@ class ShipControls(DirectObject):
                 self.ship.trail.update(t)
 
         to_y = max(0, self.tube.y - REWIND_DIST)
-        ival = LerpFunc(rewind, duration=REWIND_TIME, fromData=self.tube.y, toData=to_y, blendType='easeInOut')
+        rewind_ival = LerpFunc(rewind, duration=REWIND_TIME, fromData=self.tube.y, toData=to_y, blendType='easeInOut')
         Sequence(
-            Wait(REWIND_WAIT),
-            #Func(self.ship.trail.reset),
-            ival,
-            Wait(REWIND_WAIT),
+            Func(self.ship.explode, 1.0),
+            Wait(1.5),
+            Func(self.static_plane.show),
+            Func(self.static_tex.play),
+            Func(self.explode_reverse.play),
+            Func(self.rewind_sound.play),
+            Func(self.ship.unexplode, 0.3),
+            Wait(0.3),
+            rewind_ival,
+            Func(self.static_plane.hide),
+            Func(self.static_tex.stop),
             Func(self.tube.resume),
         ).start()
 
@@ -272,6 +338,7 @@ class ShipControls(DirectObject):
     def update(self, dt):
         if self.tube.paused:
             #self.ship.trail.trail.geom_node_path.set_y(-self.tube.y)
+            #self.ship.trail.update(self.tube.y)
             #self.ship.trail.update(self.tube.y)
             return
 
