@@ -270,6 +270,7 @@ class Tube:
                 next(self.generator)
 
     def destroy(self):
+        self.paused = True
         self.root.remove_node()
 
     def calc_types(self, count, allow_swervible, allow_passable=True, allow_tunnel=True):
@@ -602,8 +603,10 @@ class Tube:
         ts = ts or self.ts_level
         transition_ts = self.ts_steel if ts is self.ts_rift else ts
 
-        types = self.calc_types(self.seg_count, allow_swervible=False, allow_passable=False, allow_tunnel=True)
-        ring = self.gen_ring([transition_ts.segments['tile1_transition_impassable'] if nt == NavType.IMPASSABLE else transition_ts.segments['tile1_transition'] for nt in types])
+        seg1 = transition_ts.segments['tile1_transition']
+        seg2 = transition_ts.segments['tile1_transition_impassable']
+        segs = [seg1, seg2, seg2] * (int(ceil(self.seg_count // 3)))
+        ring = self.gen_ring(segs)
         ring.end_depth = 3.0
         yield ring
 
@@ -612,10 +615,10 @@ class Tube:
         inst_parent = self.root.attach_new_node('branch')
         branch_root = NodePath('branch')
 
-        rad = (to_segs - len(types)) / AR_FACTOR - 3
+        rad = (to_segs - len(segs)) / AR_FACTOR - 3
         fac = tau / self.seg_count
         for seg in range(self.seg_count):
-            if types[seg].is_passable:
+            if seg % 3 == 0:#types[seg].is_passable:
                 center = Vec2(-sin(seg * fac), cos(seg * fac)) * rad
                 inst = inst_parent.attach_new_node('inst')
                 branch_root.instance_to(inst)

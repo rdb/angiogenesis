@@ -69,11 +69,11 @@ class Game:
         base.ignore('p')
         self.ship.destroy()
         self.controls.destroy()
-        self.tube.pause()
+        self.tube.destroy()
         self.donk.destroy()
 
         #self.cutscene.actor.set_p(-90)
-        self.cutscene.actor.set_y(2596.09)
+        #self.cutscene.actor.set_y(2596.09)
         #self.cutscene.actor.set_z(40)
         #self.cutscene.actor.set_x(14)
         await self.cutscene.play('einde1')
