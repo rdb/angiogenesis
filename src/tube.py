@@ -463,8 +463,7 @@ class Tube:
         self.next_tracks.add('peace')
 
         yield self.gen_empty_ring(delta=10)
-        yield from self.gen_tile_section(3)
-        yield from self.gen_trench()
+        yield from self.gen_random_section()
 
         self.next_tracks.add('space_big')
         yield self.gen_empty_ring(delta=30)
