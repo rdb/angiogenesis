@@ -16,10 +16,11 @@ class MultiTrack:
         self.task = None
 
     def load_track(self, name, file):
-        self.sounds[name] = loader.load_music(file)
-        self.sounds[name].set_loop(False)
-        self.sounds[name].set_volume(0.0)
-        self.mgr.set_concurrent_sound_limit(len(self.sounds))
+        if name not in self.sounds:
+            self.sounds[name] = loader.load_music(file)
+            self.sounds[name].set_loop(False)
+            self.sounds[name].set_volume(0.0)
+            self.mgr.set_concurrent_sound_limit(len(self.sounds) + 1)
 
     def set_playing_tracks(self, tracks):
         self.playing = set(tracks)

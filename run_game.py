@@ -1,5 +1,11 @@
 from direct.showbase.ShowBase import ShowBase
-from panda3d.core import load_prc_file, Filename, AmbientLight, SamplerState
+from panda3d.core import (
+    load_prc_file,
+    Filename,
+    AmbientLight,
+    SamplerState,
+    AudioSound,
+)
 import simplepbr
 
 from src.tube import Tube
@@ -44,6 +50,9 @@ class Game:
     def __init__(self):
         self.title = Title()
         self.paused = False
+        self.music = base.loader.load_music('assets/music/a/A-intro.mp3')
+        self.music.set_loop(True)
+        self.music.play()
         base.accept('space', self.launch)
 
     def launch(self):
@@ -73,8 +82,15 @@ class Game:
         if self.paused:
             return task.cont
 
-        # Run simulation at least every 20 ms
         dt = base.clock.dt
+
+        if self.music.status() == AudioSound.PLAYING:
+            new_volume = max(0, self.music.get_volume() - dt)
+            self.music.set_volume(new_volume)
+            if new_volume == 0.0:
+                self.music.stop()
+
+        # Run simulation at least every 20 ms
         if base.mouseWatcherNode.is_button_down('lshift'):
             dt *= 8
         num_steps = ceil(dt / 0.020)
