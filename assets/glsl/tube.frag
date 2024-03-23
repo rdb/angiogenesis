@@ -161,7 +161,7 @@ void main() {
     // Emission
     color.rgb += emission * 300;
 
-    color.rgb *= ambient_occlusion;
+    color.rgb *= ambient_occlusion * 0.8;
 
 #ifdef USE_330
     o_color = color;
