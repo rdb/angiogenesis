@@ -616,7 +616,7 @@ class Tube:
         self.seg_count = to_segs
 
         # Every tile after tunnel should be passable but not a tunnel
-        options = [ts.segments[seg] for seg in ts.segments if 'passable_gate' in seg or 'passable_obstacle' in seg]
+        options = [ts.segments[seg] for seg in ts.segments if 'tile1_passable_gate' in seg or 'tile1_passable_obstacle' in seg]
         segs = self.random.choices(options, k=to_segs)
         ring = self.gen_ring(segs, inst_parent=inst_parent, branch_root=branch_root)
 
