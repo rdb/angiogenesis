@@ -582,12 +582,7 @@ class Tube:
         yield from self.gen_transition(6)
 
         yield from self.gen_tile_section()
-        yield from self.gen_tile_section()
         yield self.gen_passable_ring(delta=3)
-        yield from self.gen_tile_section()
-        yield from self.gen_tile_section()
-        yield self.gen_passable_ring(delta=3)
-        yield from self.gen_tile_section()
         yield from self.gen_tile_section()
         yield self.gen_passable_ring(delta=-3)
 

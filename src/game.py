@@ -34,8 +34,7 @@ class Game:
         self.text = OnscreenText(text='Loading...', pos=(0, -0.7), fg=(1, 1, 1, 1))
 
     def on_model_load(self, model):
-        self.text.destroy()
-        self.text = OnscreenText(text='Press space to start', pos=(0, -0.7), fg=(1, 1, 1, 1))
+        self.text.text = 'Press space to start'
         self.segments = model
         print("Model loaded.")
 
@@ -44,7 +43,7 @@ class Game:
         self.title.destroy()
         self.title = None
 
-        Sequence(self.text.colorScaleInterval(1.0, (0, 0, 0, 0)), Func(self.text.destroy)).start()
+        Sequence(self.text.colorScaleInterval(1.0, (0, 0, 0, 0)), Func(self.text.hide)).start()
 
         base.camLens.set_near_far(0.1, 60 * 40)
         await self.cutscene.play('intro')
@@ -82,7 +81,7 @@ class Game:
 
         taskMgr.add(self.play_ending_cutscenes())
 
-    async def play_ending_cutscenes():
+    async def play_ending_cutscenes(self):
         #self.cutscene.actor.set_p(-90)
         #self.cutscene.actor.set_y(2596.09)
         #self.cutscene.actor.set_z(40)
