@@ -527,7 +527,7 @@ class Tube:
     def gen_flesh_level(self):
         # Always start with empty
         self.next_level = 'flesh'
-        self.seg_count = 6
+        self.seg_count = 12
         yield self.gen_empty_ring(ts=self.ts_rift)
 
         self.next_tracks.discard('tight')
