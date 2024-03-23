@@ -455,6 +455,9 @@ class Tube:
         self.ts_level = self.ts_steel
         self.next_tracks = set(['peace'])
         yield self.gen_empty_ring()
+        yield from self.gen_obstacle_section()
+        yield from self.gen_wall_section(2)
+        yield from self.gen_tile_section(1)
 
         yield from self.gen_trench()
         self.next_tracks.add('peace')
@@ -467,19 +470,19 @@ class Tube:
         yield self.gen_empty_ring(delta=30)
         yield self.gen_empty_ring(delta=60)
         yield self.gen_empty_ring(delta=30)
+        yield from self.gen_random_section()
         yield from self.gen_tile_section(3)
-        yield from self.gen_tile_section(1)
+        yield from self.gen_random_section()
+        yield from self.gen_random_section()
         yield from self.gen_trench()
-        yield from self.gen_tile_section()
+        yield from self.gen_tile_section(1)
         self.next_tracks.discard('space_big')
         yield self.gen_passable_ring()
         self.next_tracks.discard('peace')
 
         self.next_tracks.add('tight')
         yield from self.gen_transition(6)
-        yield from self.gen_tile_section(1)
-        yield from self.gen_tile_section()
-        yield from self.gen_tile_section()
+        yield from self.gen_wall_section()
 
     def gen_rift_level(self):
         self.fog_factor = 0.008
@@ -616,7 +619,7 @@ class Tube:
         self.seg_count = to_segs
 
         # Every tile after tunnel should be passable but not a tunnel
-        options = [ts.segments[seg] for seg in ts.segments if 'tile1_passable_gate' in seg or 'tile1_passable_obstacle' in seg]
+        options = [transition_ts.segments[seg] for seg in transition_ts.segments if 'tile1_passable_gate' in seg or 'tile1_passable_obstacle' in seg]
         segs = self.random.choices(options, k=to_segs)
         ring = self.gen_ring(segs, inst_parent=inst_parent, branch_root=branch_root)
 
@@ -624,6 +627,15 @@ class Tube:
             ring.exits.append((i, 1, 1))
 
         yield ring
+
+    def gen_random_section(self):
+        width = self.random.choice(('wall', 'obstacle', 1, 3))
+        if width == 'wall':
+            yield from self.gen_wall_section()
+        elif width == 'obstacle':
+            yield from self.gen_obstacle_section()
+        else:
+            yield from self.gen_tile_section(width)
 
     def gen_tile_section(self, width=None, ts=None):
         if width is None:
@@ -651,6 +663,49 @@ class Tube:
                     ring.exits.append((i, 0, 0))
                 elif types[i] == NavType.PASSABLE:
                     ring.exits.append((i, types[i - 1] == NavType.PASSABLE, types[i + 1] == NavType.PASSABLE))
+            yield ring
+
+    def gen_obstacle_section(self, length=SECTION_LENGTH, ts=None):
+        ts = ts or self.ts_level
+        count = self.seg_count
+
+        for j in range(length):
+            types = self.calc_types(count, allow_swervible=True, allow_tunnel=False)
+
+            exits = []
+            segs = RingList()
+            for i, nt in enumerate(types):
+                if nt == NavType.IMPASSABLE or nt == NavType.SWERVIBLE:
+                    segs.append(ts.segments[self.random.choice(('tile1_passable_obstacle_3', 'tile1_passable_obstacle_4'))])
+                else:
+                    segs.append(ts.segments[self.random.choice(('tile1_empty', 'tile1_empty.001'))])
+                    exits.append((i, 2, 2))
+
+            ring = self.gen_ring(segs)
+            ring.exits = exits
+            yield ring
+
+    def gen_wall_section(self, length=SECTION_LENGTH, ts=None):
+        ts = ts or self.ts_level
+        count = self.seg_count
+
+        for j in range(length):
+            types = self.calc_types(count, allow_swervible=True, allow_tunnel=False)
+
+            exits = []
+            segs = RingList()
+            for i, nt in enumerate(types):
+                if nt == NavType.IMPASSABLE or nt == NavType.SWERVIBLE:
+                    segs.append(ts.segments['tile1_swervible_wall_1'])
+                elif nt == NavType.EMPTY or self.random.getrandbits(1):
+                    segs.append(ts.segments['tile1_empty'])
+                    exits.append((i, 4, 4))
+                else:
+                    segs.append(ts.segments['tile1_passable_gate_1'])
+                    exits.append((i, 4, 4))
+
+            ring = self.gen_ring(segs)
+            ring.exits = exits
             yield ring
 
     def gen_passable_ring(self, delta=0, ts=None):
@@ -683,7 +738,7 @@ class Tube:
         ring = self.gen_ring(segs, width=width)
 
         for i in range(len(segs)):
-            ring.exits.append((i, 2, 2))
+            ring.exits.append((i, 4, 4))
 
         return ring
 
