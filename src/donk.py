@@ -140,19 +140,8 @@ class Collisions(DirectObject):
                 self.controls.crash()
             else:
                 self.controls.donk(deflect, pain)
-                if not self.scraping:
-                    new_scrape = self.steel_scrape if current_ring.level == 'steel' else self.flesh_scrape
-                    if self.scrape != new_scrape:
-                        if self.scrape:
-                            self.scrape.stop()
-                        self.scrape = new_scrape
-
-                    self.scrape.set_volume(1.0)
-                    if self.scrape.status() != AudioSound.PLAYING:
-                        self.scrape.set_time(0.2)
-                        self.scrape.play()
-
-                self.scraping += dt
+                if self.scraping:
+                    self.scraping += dt
 
         elif self.scraping:
             if self.scraping < 0.1 and self.scrape:
@@ -168,12 +157,33 @@ class Collisions(DirectObject):
 
         self.cship.set_pos(0, 0, ship_z)
 
+    def start_scrape(self, material):
+        if self.scraping or self.tube.paused:
+            return False
+
+        new_scrape = self.steel_scrape if material == 'steel' else self.flesh_scrape
+        if self.scrape != new_scrape:
+            if self.scrape:
+                self.scrape.stop()
+            self.scrape = new_scrape
+
+        self.scrape.set_volume(1.0)
+        if self.scrape.status() != AudioSound.PLAYING:
+            self.scrape.set_time(0.2)
+            self.scrape.play()
+
+        self.scraping = 0.00001
+
+        return True
+
     def bump_flesh(self, entry):
-        sound = choice(self.flesh_bumps)
-        sound.set_play_rate(0.5 + random())
-        sound.play()
+        if self.start_scrape('flesh'):
+            sound = choice(self.flesh_bumps)
+            sound.set_play_rate(0.5 + random())
+            sound.play()
 
     def bump_steel(self, entry):
-        sound = choice(self.steel_bumps)
-        sound.set_play_rate(0.5 + random())
-        sound.play()
+        if self.start_scrape('steel'):
+            sound = choice(self.steel_bumps)
+            sound.set_play_rate(0.5 + random())
+            sound.play()
