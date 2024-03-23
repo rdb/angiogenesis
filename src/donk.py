@@ -136,7 +136,7 @@ class Collisions(DirectObject):
             deflect = moved.x / current_ring.r_to_x
             pain = -moved.xy.normalized().y
 
-            if pain > 0.8 and not base.mouseWatcherNode.is_button_down('lshift'):
+            if pain > 0.8:# and not base.mouseWatcherNode.is_button_down('lshift'):
                 if self.scrape:
                     self.scrape.stop()
                 self.scraping = 0.0

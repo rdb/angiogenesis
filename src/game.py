@@ -1,7 +1,7 @@
 from panda3d.core import (
     AudioSound,
 )
-from direct.interval.IntervalGlobal import Func, Sequence
+from direct.interval.IntervalGlobal import Func, Sequence, Wait
 from direct.gui.OnscreenText import OnscreenText
 
 from .tube import Tube
@@ -32,13 +32,14 @@ class Game:
         self.segments = None
 
         self.text = OnscreenText(text='Loading...', pos=(0, -0.7), fg=(1, 1, 1, 1))
+        self.task = None
 
     def on_model_load(self, model):
         self.text.text = 'Press space to start'
         self.segments = model
         print("Model loaded.")
 
-    async def launch(self):
+    def launch(self):
         base.ignore('space')
         self.title.destroy()
         self.title = None
@@ -46,8 +47,9 @@ class Game:
         Sequence(self.text.colorScaleInterval(1.0, (0, 0, 0, 0)), Func(self.text.hide)).start()
 
         base.camLens.set_near_far(0.1, 60 * 40)
-        await self.cutscene.play('intro')
+        self.cutscene.play('intro', self.launch_harder)
 
+    def launch_harder(self):
         self.ship = Ship()
         self.ship.root.reparent_to(render)
 
@@ -68,30 +70,40 @@ class Game:
         base.accept('endgame', self.game_end)
         base.accept('p', self.toggle_pause)
         self.task = base.taskMgr.add(self.update, sort=1)
-        self.starfield.destroy()
+        self.starfield.fields.hide()
+        base.accept('e', self.game_end)
 
     def game_end(self):
         self.paused = True
-        self.task.remove()
+        if self.task:
+            self.task.remove()
         base.ignore('p')
         self.ship.destroy()
         self.controls.destroy()
         self.tube.destroy()
         self.donk.destroy()
 
-        taskMgr.add(self.play_ending_cutscenes())
-
-    async def play_ending_cutscenes(self):
         #self.cutscene.actor.set_p(-90)
         #self.cutscene.actor.set_y(2596.09)
         #self.cutscene.actor.set_z(40)
         #self.cutscene.actor.set_x(14)
-        await self.cutscene.play('einde1')
+        self.cutscene.play('einde1', self.game_endier)
+        explode = loader.load_sfx('assets/sfx/f_explode.wav')
+        #Sequence(Wait(2.0), Func(explode.play)).start()
         #print(base.cam.get_pos(render))
         #self.cutscene.actor.set_p(0)
 
+    def game_endier(self):
+        self.starfield.fields.show()
+        base.camLens.set_near_far(0.1, 300)
         self.cutscene2 = Cutscene('assets/bam/cutscenes/cutscene2.bam')
-        await self.cutscene2.play('KeyAction')
+        self.cutscene2.play('KeyAction', self.game_endiest, startFrame=25)
+
+        explode = loader.load_sfx('assets/sfx/big_explosion.mp3')
+        explode.play()
+
+    def game_endiest(self):
+        text = OnscreenText(text='thank you for playing', pos=(0, 0.0), fg=(1, 1, 1, 1))
 
     def toggle_pause(self):
         self.paused = not self.paused
@@ -109,8 +121,8 @@ class Game:
                 self.music.stop()
 
         # Run simulation at least every 20 ms
-        if base.mouseWatcherNode.is_button_down('lshift'):
-            dt *= 8
+        #if base.mouseWatcherNode.is_button_down('lshift'):
+        #    dt *= 8
         num_steps = ceil(dt / 0.020)
         dt /= num_steps
         num_steps = min(10, num_steps)

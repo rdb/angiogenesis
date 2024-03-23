@@ -30,17 +30,17 @@ class MultiTrack:
             sound.play()
 
         if not self.task:
-            self.task = taskMgr.add(self.do_fade)
+            self.task = taskMgr.add(self.do_fade_task)
 
     def stop(self):
         if self.task:
-            self.task.stop()
+            self.task.remove()
             self.task = None
 
         for sound in self.sounds.values():
             sound.stop()
 
-    def do_fade(self, task):
+    def do_fade(self):
         restart = False
         for name, sound in self.sounds.items():
             vol = sound.get_volume()
@@ -59,4 +59,6 @@ class MultiTrack:
                 sound.set_time(0.0)
                 sound.play()
 
+    def do_fade_task(self, task):
+        self.do_fade()
         return task.cont

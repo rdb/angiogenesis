@@ -17,20 +17,22 @@ class Cutscene:
             if joint.name == 'camera':
                 self.camera_joint = joint
 
-    def play(self, name):
+    def play(self, name, callback, **kwargs):
         self.actor.show()
         self.actor.reparent_to(render)
 
         if self.camera_joint:
             joint = self.actor.expose_joint(None, 'modelRoot', 'camera')
             base.cam.reparent_to(joint)
+            base.cam.set_hpr(0, -90, 0)
         else:
             base.cam.reparent_to(render)
-            base.cam.set_pos(0, 0, 0)
-        base.cam.set_hpr(0, -90, 0)
-        return Sequence(self.actor.actorInterval(name), Func(self.cleanup))
+            base.cam.set_pos(0, -130, 0)
+            base.cam.set_hpr(0, 0, 0)
+        Sequence(self.actor.actorInterval(name, **kwargs), Func(self.cleanup), Func(callback)).start()
 
     def cleanup(self):
+        print("cleanup")
         base.cam.set_p(0)
         base.cam.reparent_to(base.camera)
         self.actor.detach_node()

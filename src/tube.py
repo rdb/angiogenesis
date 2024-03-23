@@ -270,6 +270,9 @@ class Tube:
                 next(self.generator)
 
     def destroy(self):
+        self.music.set_playing_tracks(('space_big',))
+        self.music.do_fade()
+        self.music.stop()
         self.paused = True
         self.root.remove_node()
 
