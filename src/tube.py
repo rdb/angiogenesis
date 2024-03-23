@@ -16,7 +16,7 @@ from .gurgles import MultiTrack
 from .util import RingList
 
 
-LEVEL = 'steel'
+LEVEL = 'rift'
 LEVELS = 'steel', 'rift', 'flesh'
 NUM_RINGS = 30
 X_SPACING = 2
@@ -277,6 +277,16 @@ class Tube:
         old_count = len(self.last_ring.collision_nodes)
         if count > old_count and count / old_count == 3:
             exits = [(exit[0] * 3, exit[1], exit[2]) for exit in exits]
+
+        elif old_count > count and old_count / count == 3:
+            old_exits = exits
+            exits = []
+            for old_exit in old_exits:
+                i = int(round(old_exit[0] / 3))
+                exits.append((i - 1, old_exit[1] + 1, old_exit[2]))
+                exits.append((i, old_exit[1], old_exit[2]))
+                exits.append((i + 1, old_exit[1], old_exit[2] + 1))
+
         elif count != old_count:
             if allow_tunnel and allow_passable:
                 return RingList(self.random.choices((NavType.PASSABLE, NavType.PASSABLE, NavType.TUNNEL)) * count)
@@ -474,9 +484,45 @@ class Tube:
         yield from self.gen_tile_section()
 
     def gen_rift_level(self):
+        self.fog_factor = 0.008
+        self.twist_factor = 0.0
+        self.bend_time_factor = 0.0
+        self.bend_y_factor = 0.0002
         self.next_level = 'rift'
+
+        self.seg_count = 6
         self.ts_level = self.ts_rift
+        self.next_tracks = set(['tight', 'medium'])
+        yield self.gen_empty_ring(delta=10)
+
+        yield self.gen_passable_ring(delta=3)
+        yield self.gen_passable_ring(delta=3)
+        yield self.gen_passable_ring(delta=3)
+        yield self.gen_passable_ring(delta=3)
+        yield self.gen_passable_ring(delta=3)
+        yield self.gen_passable_ring(delta=3)
+
+        yield from self.gen_trench()
+
+        self.next_tracks = set(['peace', 'drive'])
+
+        self.next_tracks.add('space_big')
+        yield self.gen_empty_ring(delta=30)
+        yield self.gen_empty_ring(delta=60)
+        yield self.gen_empty_ring(delta=30)
+        yield from self.gen_tile_section(3)
+        yield from self.gen_tile_section(1)
+        yield self.gen_empty_ring(delta=3)
+        yield from self.gen_trench(length=10)
+        self.next_tracks.discard('space_big')
         yield self.gen_empty_ring()
+        self.next_tracks.discard('peace')
+
+        self.next_tracks.add('tight')
+        yield from self.gen_transition(12)
+        yield from self.gen_tile_section(1)
+        yield from self.gen_tile_section()
+        yield from self.gen_tile_section()
 
     def gen_flesh_level(self):
         # Always start with empty
@@ -548,11 +594,14 @@ class Tube:
 
     def gen_transition(self, to_segs, ts=None):
         ts = ts or self.ts_level
+        transition_ts = self.ts_steel if ts is self.ts_rift else ts
 
         types = self.calc_types(self.seg_count, allow_swervible=False, allow_passable=False, allow_tunnel=True)
-        ring = self.gen_ring([ts.segments['tile1_transition_impassable'] if nt == NavType.IMPASSABLE else ts.segments['tile1_transition'] for nt in types])
+        ring = self.gen_ring([transition_ts.segments['tile1_transition_impassable'] if nt == NavType.IMPASSABLE else transition_ts.segments['tile1_transition'] for nt in types])
         ring.end_depth = 3.0
         yield ring
+
+        self.extend_ring_geometry(ring, NUM_RINGS, skip=1, ts=ts)
 
         inst_parent = self.root.attach_new_node('branch')
         branch_root = NodePath('branch')
@@ -616,7 +665,7 @@ class Tube:
             width = 3
 
         segs = self.random.choices(tiles, k=int(ceil((self.seg_count + delta) / width)))
-        ring = self.gen_ring(segs)
+        ring = self.gen_ring(segs, width=width)
 
         for i in range(len(segs)):
             ring.exits.append((i, 1, 1))
@@ -628,17 +677,19 @@ class Tube:
 
         if ts.tile1_by_type[NavType.EMPTY]:
             segs = self.random.choices(ts.tile1_by_type[NavType.EMPTY], k=max(1, self.seg_count + delta))
+            width = 1
         else:
             segs = self.random.choices(ts.tile3_by_type[NavType.EMPTY], k=int(ceil((self.seg_count + delta) / 3)))
+            width = 3
 
-        ring = self.gen_ring(segs)
+        ring = self.gen_ring(segs, width=width)
 
         for i in range(len(segs)):
             ring.exits.append((i, 2, 2))
 
         return ring
 
-    def gen_trench(self, ts=None):
+    def gen_trench(self, length=SECTION_LENGTH, ts=None):
         ts = ts or self.ts_level
 
         if not ts.entrance_trenches or not ts.middle_trenches:
@@ -660,7 +711,7 @@ class Tube:
         ring.end_depth = TRENCH_DEPTH
         yield ring
 
-        for i in range(SECTION_LENGTH):
+        for i in range(length):
             segs = [self.random.choice(ts.middle_trenches if nt == NavType.TUNNEL else ts.impassable_trenches) for nt in types]
             ring = self.gen_ring(segs, width=3)
             ring.exits = exits
@@ -680,6 +731,8 @@ class Tube:
 
     def gen_ring(self, set, width=1, parent=None, inst_parent=None, branch_root=None, override_gravity=None):
         count = len(set) * width
+        assert count > 0
+
         from_radius = self.seg_count / AR_FACTOR
         to_radius = count / AR_FACTOR
 
@@ -728,6 +781,19 @@ class Tube:
 
         self.seg_count = count
         return ring
+
+    def extend_ring_geometry(self, last_ring, num_extra_rings, skip, ts):
+        np = last_ring.node_path.attach_new_node("ring_extension")
+        width = 1
+
+        for i in range(num_extra_rings):
+            segs = self.random.choices([ts.segments[seg] for seg in ts.segments if 'tile1' in seg], k=last_ring.num_segments)
+
+            for c, (gnode, cnode) in enumerate(segs):
+                gnode = gnode.copy_to(np)
+                gnode.set_pos(c * X_SPACING * width, (i + skip) * Y_SPACING, 0)
+
+        np.flatten_strong()
 
     def prepend_empty_ring(self):
         next_ring = self.first_ring
