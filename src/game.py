@@ -1,6 +1,8 @@
 from panda3d.core import (
     AudioSound,
 )
+from direct.interval.IntervalGlobal import Func, Sequence
+from direct.gui.OnscreenText import OnscreenText
 
 from .tube import Tube
 from .ship import Ship, ShipControls
@@ -29,7 +31,11 @@ class Game:
         loader.load_model('assets/bam/segments/segments.bam', callback=self.on_model_load)
         self.segments = None
 
+        self.text = OnscreenText(text='Loading...', pos=(0, -0.7), fg=(1, 1, 1, 1))
+
     def on_model_load(self, model):
+        self.text.destroy()
+        self.text = OnscreenText(text='Press space to start', pos=(0, -0.7), fg=(1, 1, 1, 1))
         self.segments = model
         print("Model loaded.")
 
@@ -37,6 +43,8 @@ class Game:
         base.ignore('space')
         self.title.destroy()
         self.title = None
+
+        Sequence(self.text.colorScaleInterval(1.0, (0, 0, 0, 0)), Func(self.text.destroy)).start()
 
         base.camLens.set_near_far(0.1, 60 * 40)
         await self.cutscene.play('intro')
@@ -63,7 +71,7 @@ class Game:
         self.task = base.taskMgr.add(self.update, sort=1)
         self.starfield.destroy()
 
-    async def game_end(self):
+    def game_end(self):
         self.paused = True
         self.task.remove()
         base.ignore('p')
@@ -72,13 +80,16 @@ class Game:
         self.tube.destroy()
         self.donk.destroy()
 
+        taskMgr.add(self.play_ending_cutscenes())
+
+    async def play_ending_cutscenes():
         #self.cutscene.actor.set_p(-90)
         #self.cutscene.actor.set_y(2596.09)
         #self.cutscene.actor.set_z(40)
         #self.cutscene.actor.set_x(14)
         await self.cutscene.play('einde1')
-        print(base.cam.get_pos(render))
-        self.cutscene.actor.set_p(0)
+        #print(base.cam.get_pos(render))
+        #self.cutscene.actor.set_p(0)
 
         self.cutscene2 = Cutscene('assets/bam/cutscenes/cutscene2.bam')
         await self.cutscene2.play('KeyAction')
