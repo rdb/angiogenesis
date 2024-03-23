@@ -348,7 +348,7 @@ class ShipControls(DirectObject):
         #self.set_ship_z_target(SHIP_HEIGHT - max(current_ring.start_radius + current_ring.start_depth, current_ring.end_radius + current_ring.end_depth))
         self.set_ship_z_target(SHIP_HEIGHT - current_ring.radius_at(0.0) - current_ring.depth_at(0.0))
 
-        if USE_GRAVITY:
+        if USE_GRAVITY and current_ring.override_gravity is not None:
             z = self.ship.ship.get_z()
             if z > self.z_target:
                 if current_ring.override_gravity is not None:
@@ -376,10 +376,10 @@ class ShipControls(DirectObject):
                     z = self.z_target
                     self.z_speed = -1
 
-        elif self.z_t < 1.0:
-            self.z_t = min(1.0, self.z_t + dt)
-            t = smoothstep(self.z_t)
-            z = self.z_origin * (1 - t) + self.z_target * t
+        #elif self.z_t < 1.0:
+        #    self.z_t = min(1.0, self.z_t + dt)
+        #    t = smoothstep(self.z_t)
+        #    z = self.z_origin * (1 - t) + self.z_target * t
         else:
             z = self.z_target
 
