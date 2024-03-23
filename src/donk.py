@@ -1,3 +1,4 @@
+from direct.showbase.DirectObject import DirectObject
 from panda3d.core import *
 from math import floor, ceil
 from random import random, choice
@@ -7,7 +8,7 @@ DONK_DEBUG = False
 SCRAPE_FADEOUT_SPEED = 2.0
 
 
-class Collisions:
+class Collisions(DirectObject):
     def __init__(self, tube, controls):
         self.tube = tube
         self.controls = controls
@@ -22,6 +23,10 @@ class Collisions:
 
         self.pusher = CollisionHandlerPusher()
         self.pusher.add_collider(self.cship, self.cship)
+        self.pusher.add_in_pattern('into-%(material)it')
+
+        base.accept('into-flesh', self.bump_flesh)
+        base.accept('into-steel', self.bump_steel)
 
         self.trav = CollisionTraverser()
         self.trav.add_collider(self.cship, self.pusher)
@@ -97,8 +102,8 @@ class Collisions:
             i0 = int(floor(ship_r * seg_count)) % seg_count
             i1 = int(ceil(ship_r * seg_count)) % seg_count
 
-            cnode0 = ring.collision_nodes[i0]
-            cnode1 = ring.collision_nodes[i1] if i0 != i1 else None
+            cnodes0 = ring.collision_nodes[i0]
+            cnodes1 = ring.collision_nodes[i1] if i0 != i1 else ()
 
             ship_x = ship_r * ring.r_to_x
 
@@ -110,17 +115,19 @@ class Collisions:
             if x1 > ring.r_to_x // 2:
                 x1 -= ring.r_to_x
 
-            if cnode0 is not None:
-                cnode_path = cnode0.copy_to(self.croot)
-                cnode_path.set_pos(x0, ring.node_path.get_y(), 0)
-                if DONK_DEBUG:
-                    cnode_path.show()
+            if cnodes0 is not None:
+                for cnode_path in cnodes0:
+                    cnode_path = cnode_path.copy_to(self.croot)
+                    cnode_path.set_pos(x0, ring.node_path.get_y(), 0)
+                    if DONK_DEBUG:
+                        cnode_path.show()
 
-            if cnode1 is not None:
-                cnode_path = cnode1.copy_to(self.croot)
-                cnode_path.set_pos(x1, ring.node_path.get_y(), 0)
-                if DONK_DEBUG:
-                    cnode_path.show()
+            if cnodes1 is not None:
+                for cnode_path in cnodes1:
+                    cnode_path = cnode_path.copy_to(self.croot)
+                    cnode_path.set_pos(x1, ring.node_path.get_y(), 0)
+                    if DONK_DEBUG:
+                        cnode_path.show()
 
         self.trav.traverse(self.croot)
 
@@ -151,13 +158,6 @@ class Collisions:
                         self.scrape.set_time(0.2)
                         self.scrape.play()
 
-                    if current_ring.level == 'steel':
-                        sound = choice(self.steel_bumps)
-                    else:
-                        sound = choice(self.flesh_bumps)
-                    sound.set_play_rate(0.5 + random())
-                    sound.play()
-
                 self.scraping += dt
 
         elif self.scraping:
@@ -173,3 +173,13 @@ class Collisions:
                 self.scrape = None
 
         self.cship.set_pos(0, 0, ship_z)
+
+    def bump_flesh(self, entry):
+        sound = choice(self.flesh_bumps)
+        sound.set_play_rate(0.5 + random())
+        sound.play()
+
+    def bump_steel(self, entry):
+        sound = choice(self.steel_bumps)
+        sound.set_play_rate(0.5 + random())
+        sound.play()

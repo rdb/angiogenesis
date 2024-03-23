@@ -74,8 +74,8 @@ class TileSet:
     def add(self, n):
         name = n.name.split('_', 1)[1]
 
-        cnp = n.find("**/+CollisionNode")
-        if cnp:
+        cnps = []
+        for num, cnp in enumerate(n.find_all_matches("**/+CollisionNode")):
             cnode = cnp.node()
             num_solids = cnode.get_num_solids()
             i = 0
@@ -95,21 +95,18 @@ class TileSet:
             for c in cnp.children:
                 c.reparent_to(n)
 
-            cnp.set_tag("tileset", self.name)
+            if self.name == "rift":
+                cnp.set_tag("material", "flesh" if num else "steel")
+            else:
+                cnp.set_tag("material", self.name)
 
-            if num_solids == 0:
-                cnp = None
-        else:
-            cnp = None
-
-        # Code isn't handling multiple collision nodes yet
-        #assert not n.find("**/+CollisionNode")
-        n.find_all_matches("**/+CollisionNode").detach()
+            if num_solids > 0:
+                cnps.append(cnp)
 
         n.clear_transform()
         n.flatten_strong()
 
-        seg = (n, cnp)
+        seg = (n, cnps)
         self.segments[name] = seg
 
         if name.startswith('trench3_entrance'):
@@ -760,10 +757,10 @@ class Tube:
 
         ring.r_to_x = count * X_SPACING
 
-        for c, (gnode, cnode) in enumerate(set):
+        for c, (gnode, cnodes) in enumerate(set):
             gnode = gnode.copy_to(np)
             gnode.set_pos(c * X_SPACING * width, 0, 0)
-            ring.collision_nodes.append(cnode)
+            ring.collision_nodes.append(cnodes)
 
         np.flatten_strong()
         np.set_y(parent.node_path.get_y() + Y_SPACING if parent else 0)
@@ -790,7 +787,7 @@ class Tube:
         for i in range(num_extra_rings):
             segs = self.random.choices([ts.segments[seg] for seg in ts.segments if 'tile1' in seg], k=last_ring.num_segments)
 
-            for c, (gnode, cnode) in enumerate(segs):
+            for c, (gnode, cnodes) in enumerate(segs):
                 gnode = gnode.copy_to(np)
                 gnode.set_pos(c * X_SPACING * width, (i + skip) * Y_SPACING, 0)
 
@@ -828,10 +825,10 @@ class Tube:
 
         ring.r_to_x = count * X_SPACING
 
-        for c, (gnode, cnode) in enumerate(segs):
+        for c, (gnode, cnodes) in enumerate(segs):
             gnode = gnode.copy_to(np)
             gnode.set_pos(c * X_SPACING * width, 0, 0)
-            ring.collision_nodes.append(cnode)
+            ring.collision_nodes.append(cnodes)
 
         np.flatten_strong()
         np.set_y(next_ring.y - Y_SPACING)
