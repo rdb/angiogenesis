@@ -3,7 +3,7 @@ from panda3d.core import ColorBlendAttrib, TransparencyAttrib
 from panda3d.core import Point3, Vec4
 
 from direct.showbase.DirectObject import DirectObject
-from direct.interval.IntervalGlobal import Sequence, Func
+from direct.interval.IntervalGlobal import Sequence, Wait, Func, LerpFunc
 from direct.motiontrail.MotionTrail import MotionTrail
 from direct.gui.OnscreenText import OnscreenText
 from random import random
@@ -24,6 +24,10 @@ SHIP_HEIGHT = 0.2
 USE_GRAVITY = True
 SHIP_Z_ACC = 2.5
 SHIP_BOUNCE = 0.1
+
+REWIND_DIST = 40.0
+REWIND_TIME = 2.0
+REWIND_WAIT = 0.2
 
 # with higher value, will play big bounce sound only at higher vertical speeds
 BOUNCE_LARGE_THRESHOLD = 1.0
@@ -67,12 +71,81 @@ class ShipTrail:
 
     def update(self, tube_y):
         self.accum_dt += base.clock.dt
-        mt = MotionTrail.motion_trail_list[0]
         transform = self.ship.getNetTransform().getMat()
         transform = transform * transform.translate_mat(0,tube_y,0)
         self.trail.geom_node_path.set_y(-tube_y)
-        mt.transferVertices()
-        mt.cmotion_trail.updateMotionTrail(self.accum_dt, transform)
+        self.trail.transferVertices()
+        self.trail.cmotion_trail.updateMotionTrail(self.accum_dt, transform)
+
+    def reset(self):
+        self.trail.reset_motion_trail()
+        self.trail.reset_motion_trail_geometry()
+
+
+class PathHistory:
+    def __init__(self, max_length):
+        self.max_length = max_length
+        self.samples = []
+
+    def append(self, t, v):
+        while len(self.samples) > 0 and self.samples[-1][0] >= t:
+            self.samples.pop()
+
+        while len(self.samples) > 2 and self.samples[1][0] < t - self.max_length:
+            self.samples.pop(0)
+
+        self.samples.append((t, v))
+
+    def sample(self, t):
+        if t >= self.samples[-1][0]:
+            t, v = self.samples[-1]
+            return v
+
+        if self.samples[0][0] >= t:
+            t, v = self.samples[0]
+            return v
+
+        i = 0
+        while len(self.samples) > 2 and self.samples[i + 1][0] < t:
+            i += 1
+
+        t0, v0 = self.samples[i]
+        t1, v1 = self.samples[i + 1]
+        if t0 == t1:
+            return v0
+        else:
+            ti = (t - t0) / (t1 - t0)
+            return v0 * (1 - ti) + v1 * ti
+
+    def rewind(self, t):
+        "Like sample, but also removes all samples after that point"
+
+        if t >= self.samples[-1][0]:
+            t, v = self.samples[-1]
+            return v
+
+        if self.samples[0][0] >= t:
+            if len(self.samples) > 1:
+                del self.samples[1:]
+            t, v = self.samples[0]
+            return v
+
+        i = len(self.samples) - 2
+        while i >= 0 and self.samples[i][0] > t:
+            self.samples.pop()
+            i -= 1
+
+        t0, v0 = self.samples[i]
+        t1, v1 = self.samples[i + 1]
+        if t0 == t1:
+            v = v0
+        else:
+            ti = (t - t0) / (t1 - t0)
+            v = v0 * (1 - ti) + v1 * ti
+
+        # Replace last sample with what we just interpolated
+        self.samples[-1] = (t, v)
+        return v
 
 
 class Ship:
@@ -110,7 +183,8 @@ class ShipControls(DirectObject):
         self.z_t = 1.0
         self.z_speed = 0.0
 
-        self.trail = [(0, 0, base.camera.get_z())]
+        self.history = PathHistory(max(CAM_TRAIL, REWIND_DIST))
+        self.history.append(0, Vec4(0, base.camera.get_z(), 0, 0))
 
     def get_ship_z_above_ground(self):
         return self.ship.ship.get_z() + self.tube.current_ring.radius_at(0.0)
@@ -135,14 +209,50 @@ class ShipControls(DirectObject):
         else:
             hor = 0
 
-        if pain > 0.8:
-            text = OnscreenText('CRASH!', fg=(1, 1, 1, 1), scale=0.5)
-            text.set_transparency(1)
-            Sequence(text.colorScaleInterval(2.0, (1, 1, 1, 0)), Func(text.destroy)).start()
-
         self.r_speed = hor * SHIP_DONK_FACTOR
 
         self.update_ship_rotation(-hor, force=True)
+
+    def crash(self):
+        text = OnscreenText('CRASH!', fg=(1, 1, 1, 1), scale=0.5)
+        text.set_transparency(1)
+        Sequence(text.colorScaleInterval(2.0, (1, 1, 1, 0)), Func(text.destroy)).start()
+        self.tube.pause()
+
+        def rewind(y):
+            self.tube.set_y(y)
+            r, z, h, tilt = self.history.rewind(self.tube.y)
+            #self.ship.root.set_r(r)
+            #self.ship.ship.set_h(h)
+            #self.ship.ship.set_r(tilt)
+
+            current_ring = self.tube.current_ring
+            radius = current_ring.radius_at(0.0) + current_ring.depth_at(0.0)
+            z = SHIP_HEIGHT - radius
+            self.ship.ship.set_z(z)
+
+            self.z_target = z
+            self.r_speed = 0
+
+            # Update motion trail
+            self.ship.trail.reset()
+            for t, (r, z, h, tilt) in self.history.samples:
+                if t < self.tube.y - 4.0:
+                    continue
+                self.ship.root.set_r(r)
+                self.ship.ship.set_h(h)
+                self.ship.ship.set_r(tilt)
+                self.ship.trail.update(t)
+
+        to_y = max(0, self.tube.y - REWIND_DIST)
+        ival = LerpFunc(rewind, duration=REWIND_TIME, fromData=self.tube.y, toData=to_y, blendType='easeInOut')
+        Sequence(
+            Wait(REWIND_WAIT),
+            #Func(self.ship.trail.reset),
+            ival,
+            Wait(REWIND_WAIT),
+            Func(self.tube.resume),
+        ).start()
 
     def update_ship_rotation(self, hor, force=False):
         target_h = self.r_speed * 60 / ROT_SPEED_LIMIT
@@ -154,6 +264,11 @@ class ShipControls(DirectObject):
         self.ship.ship.set_hpr(target_h, 0, target_r * (1 - t) + self.ship.ship.get_r() * t)
 
     def update(self, dt):
+        if self.tube.paused:
+            #self.ship.trail.trail.geom_node_path.set_y(-self.tube.y)
+            #self.ship.trail.update(self.tube.y)
+            return
+
         is_down = base.mouseWatcherNode.is_button_down
 
         current_ring = self.tube.current_ring
@@ -221,21 +336,13 @@ class ShipControls(DirectObject):
         # This happens after collisions, so that the camera doesn't clip
         r = self.ship.root.get_r()
         z = self.ship.ship.get_z()
-        self.trail.append((self.tube.y, r, z))
+        h = self.ship.ship.get_h()
+        tilt = self.ship.ship.get_r()
+        if not self.tube.paused:
+            self.history.append(self.tube.y, Vec4(r, z, h, tilt))
 
-        # Calculate ship r 3 seconds ago
-        while len(self.trail) > 2 and self.trail[1][0] < self.tube.y - CAM_TRAIL:
-            self.trail.pop(0)
-
-        y0, r0, z0 = self.trail[0]
-        y1, r1, z1 = self.trail[1]
-        if y0 == y1:
-            r = r0
-            z = z0
-        else:
-            yt = (self.tube.y - CAM_TRAIL - y0) / (y1 - y0)
-            r = r0 * (1 - yt) + r1 * yt
-            z = z0 * (1 - yt) + z1 * yt
+        # Calculate ship r and z some distance ago
+        r, z, h, tilt = self.history.sample(self.tube.y - CAM_TRAIL)
 
         if z > self.ship.ship.get_z() + 0.5:
             z = self.ship.ship.get_z() + 0.5

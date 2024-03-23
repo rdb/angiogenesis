@@ -1,6 +1,7 @@
 from panda3d.core import (
     NodePath,
     Shader,
+    ShaderAttrib,
     OmniBoundingVolume,
     NodePathCollection,
     CollisionPolygon,
@@ -24,6 +25,7 @@ SPEED = 10
 AR_FACTOR = pi
 MIN_SEG_COUNT = 6
 MAX_SWERVE = 6
+CULL_MARGIN = 5.0
 
 SECTION_LENGTH = 3
 TRENCH_DEPTH = 2.5
@@ -180,6 +182,14 @@ class Ring:
         self.play_tracks = ()
         self.override_gravity = None
 
+    @property
+    def y(self):
+        return self.node_path.get_y()
+
+    @y.setter
+    def y(self, y):
+        self.node_path.set_y(y)
+
     def radius_at(self, y):
         t = (y - self.node_path.get_y()) / Y_SPACING + 0.5
         #t = max(0, min(1, t))
@@ -191,7 +201,7 @@ class Ring:
         return self.end_depth * t + self.start_depth * (1 - t)
 
     def needs_cull(self):
-        return self.node_path.get_y() < -Y_SPACING
+        return self.node_path.get_y() < -Y_SPACING / 2.0 - CULL_MARGIN
 
     def advance(self, dy):
         new_y = self.node_path.get_y() - dy
@@ -210,9 +220,9 @@ class Tube:
         self.branch_root.set_shader_inputs(start_center=(0, 0), end_center=(0, 0))
         self.random = Random(seed)
         self.y = 0
-        self.counter = 0
         self.first_ring = None
         self.last_ring = None
+        self.paused = False
 
         self.music = MultiTrack()
         self.music.load_track('snare', 'assets/music/a/A-snare.mp3')
@@ -356,7 +366,24 @@ class Tube:
             return next(self.generator)
         return ring.next_ring
 
+    def resume(self):
+        self.paused = False
+
+    def pause(self):
+        self.paused = True
+
+    def set_y(self, y):
+        dy = y - self.y
+        self.y = y
+        self.root.set_shader_input('y', self.y)
+        self.first_ring.advance(dy)
+        while self.first_ring.y > -Y_SPACING:
+            ring = self.prepend_empty_ring()
+
     def update(self, dt):
+        if self.paused:
+            return
+
         dy = dt * SPEED
         self.y += dy
 
@@ -369,7 +396,7 @@ class Tube:
 
         ring = self.first_ring
         while ring is not None:
-            if ring.node_path.get_y() > -Y_SPACING / 2.0:
+            if ring.y > -Y_SPACING / 2.0:
                 self.music.set_playing_tracks(ring.play_tracks)
                 self.current_ring = ring
                 if self.branch_root != ring.branch_root:
@@ -410,13 +437,13 @@ class Tube:
         yield from self.gen_flesh_level()
 
     def gen_steel_level(self):
-        self.fog_factor = 0.004
+        self.fog_factor = 0.008
         self.twist_factor = 0.0
         self.bend_time_factor = 0.0
         self.bend_y_factor = 0.0002
         self.next_level = 'steel'
 
-        self.seg_count = 20
+        self.seg_count = 60
         self.ts_level = self.ts_steel
         self.next_tracks = set(['peace'])
         yield self.gen_empty_ring()
@@ -442,7 +469,7 @@ class Tube:
 
         self.next_tracks.add('tight')
         yield from self.gen_transition(6)
-        yield from self.gen_tile_section()
+        yield from self.gen_tile_section(1)
         yield from self.gen_tile_section()
         yield from self.gen_tile_section()
 
@@ -674,11 +701,6 @@ class Tube:
         ring.override_gravity = override_gravity
 
         np = NodePath("ring")
-        np.set_shader_inputs(
-            num_segments=count,
-            radius=(from_radius, to_radius),
-            level_params=(self.fog_factor, self.twist_factor, self.bend_time_factor, self.bend_y_factor),
-        )
         np.node().set_final(True)
         ring.node_path = np
 
@@ -693,11 +715,66 @@ class Tube:
         np.set_y(parent.node_path.get_y() + Y_SPACING if parent else 0)
         np.reparent_to(ring.branch_root)
 
+        np.set_shader_inputs(
+            num_segments=count,
+            radius=(from_radius, to_radius),
+            level_params=(self.fog_factor, self.twist_factor, self.bend_time_factor, self.bend_y_factor),
+        )
+
         if parent is not None:
             parent.next_ring = ring
         if parent is self.last_ring:
             self.last_ring = ring
 
-        self.counter += 1
         self.seg_count = count
+        return ring
+
+    def prepend_empty_ring(self):
+        next_ring = self.first_ring
+        count = next_ring.num_segments
+        radius = next_ring.start_radius + next_ring.start_depth
+        level = next_ring.level
+        ts = getattr(self, 'ts_' + level)
+
+        if ts.tile1_by_type[NavType.EMPTY]:
+            width = 1
+            segs = self.random.choices(ts.tile1_by_type[NavType.EMPTY], k=max(1, count))
+        else:
+            width = 3
+            segs = self.random.choices(ts.tile3_by_type[NavType.EMPTY], k=int(ceil((count) / 3)))
+
+        ring = Ring()
+        ring.next_ring = next_ring
+        ring.num_segments = count
+        ring.start_radius = radius
+        ring.end_radius = radius
+        ring.x_spacing = X_SPACING * width
+        ring.inst_parent = next_ring.inst_parent
+        ring.branch_root = next_ring.branch_root
+        ring.play_tracks = next_ring.play_tracks
+        ring.level = level
+        ring.override_gravity = False
+
+        np = NodePath("ring")
+        np.node().set_final(True)
+        ring.node_path = np
+
+        ring.r_to_x = count * X_SPACING
+
+        for c, (gnode, cnode) in enumerate(segs):
+            gnode = gnode.copy_to(np)
+            gnode.set_pos(c * X_SPACING * width, 0, 0)
+            ring.collision_nodes.append(cnode)
+
+        np.flatten_strong()
+        np.set_y(next_ring.y - Y_SPACING)
+        np.reparent_to(ring.branch_root)
+
+        np.set_attrib(next_ring.node_path.get_attrib(ShaderAttrib))
+        np.set_shader_inputs(
+            num_segments=count,
+            radius=(radius, radius),
+        )
+
+        self.first_ring = ring
         return ring

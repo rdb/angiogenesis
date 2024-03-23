@@ -79,6 +79,9 @@ class Collisions:
         return camera
 
     def update(self, dt):
+        if self.tube.paused:
+            return
+
         self.croot.node().remove_all_children()
         self.cship.reparent_to(self.croot)
 
@@ -125,35 +128,37 @@ class Collisions:
         if moved.x != 0 or moved.y != 0:
             deflect = moved.x / current_ring.r_to_x
             pain = -moved.xy.normalized().y
-            self.controls.donk(deflect, pain)
 
-            if pain > 0.8:
+            if pain > 0.8 and not base.mouseWatcherNode.is_button_down('lshift'):
                 if self.scrape:
                     self.scrape.stop()
+                self.scraping = 0.0
 
                 explode = self.steel_explode if current_ring.level == 'steel' else self.flesh_explode
                 explode.play()
+                self.controls.crash()
+            else:
+                self.controls.donk(deflect, pain)
+                if not self.scraping:
+                    new_scrape = self.steel_scrape if current_ring.level == 'steel' else self.flesh_scrape
+                    if self.scrape != new_scrape:
+                        if self.scrape:
+                            self.scrape.stop()
+                        self.scrape = new_scrape
 
-            elif not self.scraping:
-                new_scrape = self.steel_scrape if current_ring.level == 'steel' else self.flesh_scrape
-                if self.scrape != new_scrape:
-                    if self.scrape:
-                        self.scrape.stop()
-                    self.scrape = new_scrape
+                    self.scrape.set_volume(1.0)
+                    if self.scrape.status() != AudioSound.PLAYING:
+                        self.scrape.set_time(0.2)
+                        self.scrape.play()
 
-                self.scrape.set_volume(1.0)
-                if self.scrape.status() != AudioSound.PLAYING:
-                    self.scrape.set_time(0.2)
-                    self.scrape.play()
+                    if current_ring.level == 'steel':
+                        sound = choice(self.steel_bumps)
+                    else:
+                        sound = choice(self.flesh_bumps)
+                    sound.set_play_rate(0.5 + random())
+                    sound.play()
 
-                if current_ring.level == 'steel':
-                    sound = choice(self.steel_bumps)
-                else:
-                    sound = choice(self.flesh_bumps)
-                sound.set_play_rate(0.5 + random())
-                sound.play()
-
-            self.scraping += dt
+                self.scraping += dt
 
         elif self.scraping:
             if self.scraping < 0.1 and self.scrape:
