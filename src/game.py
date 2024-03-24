@@ -71,7 +71,6 @@ class Game:
         base.accept('p', self.toggle_pause)
         self.task = base.taskMgr.add(self.update, sort=1)
         self.starfield.fields.hide()
-        base.accept('e', self.game_end)
 
     def game_end(self):
         self.paused = True
