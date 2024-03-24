@@ -237,7 +237,7 @@ class ShipControls(DirectObject):
         self.history = PathHistory(max(CAM_TRAIL, REWIND_DIST))
         self.history.append(0, Vec4(0, base.camera.get_z(), 0, 0))
 
-        self.static_tex = loader.load_texture("assets/static.webm")
+        self.static_tex = loader.load_texture("assets/static.mp4")
         self.static_tex.set_minfilter(SamplerState.FT_nearest)
         self.static_tex.set_magfilter(SamplerState.FT_nearest)
         cm = CardMaker('card')
