@@ -16,23 +16,27 @@ from math import ceil
 
 class Game:
     def __init__(self):
-        self.title = Title()
         self.paused = False
-        self.music = base.loader.load_music('assets/music/a/A-intro.mp3')
+        self.music = base.loader.load_music('assets/music/a/A-intro.ogg')
         self.music.set_loop(True)
         self.music.play()
         base.accept('space', self.launch)
 
         base.camLens.set_fov(80)
 
-        self.starfield = Starfield()
         self.cutscene = Cutscene("assets/bam/cutscenes/cutscene.bam")
 
-        loader.load_model('assets/bam/segments/segments.bam', callback=self.on_model_load)
         self.segments = None
 
         self.text = OnscreenText(text='Loading...', pos=(0, -0.7), fg=(1, 1, 1, 1))
         self.task = None
+        base.graphicsEngine.renderFrame()
+        base.graphicsEngine.renderFrame()
+        self.title = Title()
+        self.starfield = Starfield()
+        base.graphicsEngine.renderFrame()
+        base.graphicsEngine.renderFrame()
+        loader.load_model('assets/bam/segments/segments.bam', callback=self.on_model_load)
 
     def on_model_load(self, model):
         self.text.text = 'Press space to start'

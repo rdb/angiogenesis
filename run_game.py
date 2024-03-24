@@ -36,6 +36,8 @@ simplepbr.init(
 for task in base.taskMgr.getTasksNamed('simplepbr update'):
     task.sort = 49
 
+base.taskMgr.step()
+
 alight = AmbientLight('alight')
 alight.set_color((0, 0, 0, 1))
 render.set_light(render.attach_new_node(alight))

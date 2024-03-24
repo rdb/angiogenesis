@@ -224,14 +224,14 @@ class Tube:
         self.paused = False
 
         self.music = MultiTrack()
-        self.music.load_track('snare', 'assets/music/a/A-snare.mp3')
-        self.music.load_track('peace', 'assets/music/a/A-peace.mp3')
-        self.music.load_track('medium', 'assets/music/a/A-medium.mp3')
-        self.music.load_track('space_big', 'assets/music/a/A-space_big.mp3')
-        self.music.load_track('space', 'assets/music/a/A-space.mp3')
-        self.music.load_track('tight', 'assets/music/a/A-tight.mp3')
-        self.music.load_track('ambient', 'assets/music/b/B-ambient.mp3')
-        self.music.load_track('drive', 'assets/music/b/B-drive.mp3')
+        self.music.load_track('snare', 'assets/music/a/A-snare.ogg')
+        self.music.load_track('peace', 'assets/music/a/A-peace.ogg')
+        self.music.load_track('medium', 'assets/music/a/A-medium.ogg')
+        self.music.load_track('space_big', 'assets/music/a/A-space_big.ogg')
+        self.music.load_track('space', 'assets/music/a/A-space.ogg')
+        self.music.load_track('tight', 'assets/music/a/A-tight.ogg')
+        self.music.load_track('ambient', 'assets/music/b/B-ambient.ogg')
+        self.music.load_track('drive', 'assets/music/b/B-drive.ogg')
         self.music.play()
 
         self.next_level = 'steel'
