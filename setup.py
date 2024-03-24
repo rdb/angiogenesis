@@ -1,7 +1,8 @@
 from setuptools import setup
 
 setup(
-    name="angiogenesis",
+    name="Angiogenesis",
+    version="1.0.0",
     options = {
         'build_apps': {
             'include_patterns': [
