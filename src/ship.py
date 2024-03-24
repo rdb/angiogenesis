@@ -237,7 +237,12 @@ class ShipControls(DirectObject):
         self.history = PathHistory(max(CAM_TRAIL, REWIND_DIST))
         self.history.append(0, Vec4(0, base.camera.get_z(), 0, 0))
 
-        self.static_tex = loader.load_texture("assets/static.mp4")
+        try:
+            self.static_tex = loader.load_texture("assets/static.mp4")
+        except IOError:
+            self.static_plane = NodePath('dummy')
+            self.static_tex = None
+            return
         self.static_tex.set_minfilter(SamplerState.FT_nearest)
         self.static_tex.set_magfilter(SamplerState.FT_nearest)
         cm = CardMaker('card')
@@ -321,18 +326,19 @@ class ShipControls(DirectObject):
 
         to_y = max(0, self.tube.y - REWIND_DIST)
         rewind_ival = LerpFunc(rewind, duration=REWIND_TIME, fromData=self.tube.y, toData=to_y, blendType='easeInOut')
+        noop = lambda: None
         Sequence(
             Func(self.ship.explode, 1.0),
             Wait(1.5),
             Func(self.static_plane.show),
-            Func(self.static_tex.play),
+            Func(self.static_tex.play if self.static_tex else noop),
             Func(self.explode_reverse.play),
             Func(self.rewind_sound.play),
             Func(self.ship.unexplode, 0.3),
             Wait(0.3),
             rewind_ival,
             Func(self.static_plane.hide),
-            Func(self.static_tex.stop),
+            Func(self.static_tex.stop if self.static_tex else noop),
             Func(self.tube.resume),
         ).start()
 
