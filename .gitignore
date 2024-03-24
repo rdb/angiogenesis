@@ -7,6 +7,7 @@ __pycache__/
 /build/
 /.eggs/
 /dist/
+/*.egg-info/
 /screenshot-*.jpg
 
 /*.core
